@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ordföljd på tavlan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
+<style>
+:root{
+  --board:#E9EEEC; --panel:#F8FAF9; --ink:#1B2330; --muted:#5A6573; --line:#C9D3D0;
+  --tile:#FFFFFF; --tile-edge:#B9C4C1; --tile-ink:#1B2330;
+  --subj:#1D5FBF; --verb:#C8322B; --adv:#B07A00; --advbg:#FFF1C7; --qw:#7A3FB3; --add:#1E8A5A;
+  --ok:#1E8A5A; --okbg:#E3F4EB; --warn:#9A5B00; --warnbg:#FFF1D6;
+  --accent:#1D5FBF;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --board:#1A2126; --panel:#222B31; --ink:#EEF2F4; --muted:#A5B0BA; --line:#3A4750;
+    --tile:#2E3A42; --tile-edge:#11171B; --tile-ink:#F4F7F8;
+    --subj:#78A9FF; --verb:#FF7B72; --adv:#F2C14E; --advbg:#4A3C12; --qw:#C39BF0; --add:#5DD39E;
+    --ok:#5DD39E; --okbg:#173A2A; --warn:#F2C14E; --warnbg:#3F3313; --accent:#78A9FF;
+  }
+}
+:root[data-theme="dark"]{
+  --board:#1A2126; --panel:#222B31; --ink:#EEF2F4; --muted:#A5B0BA; --line:#3A4750;
+  --tile:#2E3A42; --tile-edge:#11171B; --tile-ink:#F4F7F8;
+  --subj:#78A9FF; --verb:#FF7B72; --adv:#F2C14E; --advbg:#4A3C12; --qw:#C39BF0; --add:#5DD39E;
+  --ok:#5DD39E; --okbg:#173A2A; --warn:#F2C14E; --warnbg:#3F3313; --accent:#78A9FF;
+}
+*{box-sizing:border-box}
+html{font-size:clamp(16px,1.25vw + 6px,26px)}
+body{margin:0;background:var(--board);color:var(--ink);font-family:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;line-height:1.45;min-height:100vh;display:flex;flex-direction:column}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,.tile:focus-visible,.slot:focus-visible,.card:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+
+/* top bar */
+header{display:flex;align-items:center;gap:1rem;padding:.7rem 1.2rem;border-bottom:2px solid var(--line);background:var(--panel);flex-wrap:wrap}
+header h1{font-size:1.05rem;margin:0;white-space:nowrap}
+nav.tabs{display:flex;gap:.3rem;flex-wrap:wrap;flex:1}
+nav.tabs button{border:0;background:transparent;padding:.35rem .7rem;border-radius:.4rem;font-size:.78rem;color:var(--muted)}
+nav.tabs button[aria-selected="true"]{background:var(--ink);color:var(--panel)}
+.tools{display:flex;gap:.3rem}
+.iconbtn{border:2px solid var(--line);background:var(--panel);border-radius:.4rem;padding:.25rem .55rem;font-size:.75rem}
+
+main{flex:1;width:100%;max-width:1400px;margin:0 auto;padding:1.4rem 1.6rem 1rem}
+.instr{font-style:italic;font-size:1.05rem;margin:0 0 .2rem}
+.src{color:var(--muted);font-size:.72rem;margin:0 0 1.2rem}
+.itemhead{display:flex;align-items:baseline;gap:.8rem;margin-bottom:.6rem}
+.num{font-size:2.6rem;font-weight:700;line-height:1;min-width:1.6em}
+.example{color:var(--muted);font-size:.9rem}
+.original{font-size:1.5rem;margin:.2rem 0 1rem}
+
+/* chips */
+.chips{display:flex;gap:.4rem;flex-wrap:wrap;margin:0 0 1rem}
+.chip{border:2px solid var(--line);background:var(--panel);border-radius:2rem;padding:.2rem .8rem;font-size:.8rem}
+.chip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent);color:var(--panel)}
+
+/* the board strip where sentences are built */
+.strip{position:relative;min-height:4.2rem;padding:.8rem 1rem 1.6rem;border-radius:.6rem;background:var(--panel);border:2px solid var(--line);display:flex;flex-wrap:wrap;align-items:center;gap:.55rem .45rem}
+.strip.empty::before{content:"Dra eller klicka orden hit";color:var(--muted);font-size:.9rem;position:absolute;left:1.1rem;top:1.25rem;pointer-events:none}
+.endmark{font-size:1.9rem;font-weight:700;margin-left:-.2rem;order:9999}
+.bank{min-height:4rem;display:flex;flex-wrap:wrap;gap:.55rem .45rem;padding:1rem .2rem;margin-top:.6rem}
+.banklabel{color:var(--muted);font-size:.72rem;margin-top:1rem}
+
+/* magnetic word tiles */
+.tile{position:relative;display:inline-block;font-size:1.55rem;padding:.25rem .7rem .3rem;background:var(--tile);color:var(--tile-ink);border-radius:.35rem;border:1px solid var(--tile-edge);box-shadow:0 .2rem 0 var(--tile-edge);user-select:none;-webkit-user-select:none;touch-action:none;cursor:grab;white-space:nowrap;transition:box-shadow .15s}
+.tile:active{cursor:grabbing}
+.tile.locked{cursor:default;background:var(--advbg);border-color:var(--adv)}
+.tile.ghost{opacity:.3}
+.tile.chosen{box-shadow:0 .45rem .6rem rgba(0,0,0,.25)}
+.tile.fv-hint{color:var(--verb);border-color:var(--verb);box-shadow:0 .2rem 0 var(--verb)}
+.pos{position:absolute;left:0;right:0;bottom:-1.35rem;text-align:center;font-size:.58rem;color:var(--muted);white-space:nowrap}
+.pos.good{color:var(--ok);font-weight:700}
+.pos.bad{color:var(--verb);font-weight:700}
+
+/* static role-coloured tiles used in the animated exercises */
+.flipline{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem .5rem;padding:1.3rem 1.2rem;border-radius:.6rem;background:var(--panel);border:2px solid var(--line);min-height:5.5rem}
+.flipline .tile{cursor:default;font-size:1.9rem}
+.r-s{color:var(--subj)} .r-v{color:var(--verb)} .r-a{color:var(--adv)} .r-q{color:var(--qw)} .r-n{color:var(--add)}
+.tile.r-s{border-color:var(--subj)} .tile.r-v{border-color:var(--verb)}
+.tile.r-u{background:var(--advbg);border-color:var(--adv);text-decoration:underline;text-decoration-thickness:.12em;text-underline-offset:.18em}
+.tile.r-att{background:var(--okbg);border-color:var(--add)}
+.tile.lift{z-index:2}
+
+/* buttons */
+.actions{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.1rem}
+.btn{border:2px solid var(--ink);background:var(--panel);border-radius:.45rem;padding:.35rem .9rem;font-size:.85rem;font-weight:700}
+.btn.primary{background:var(--ink);color:var(--panel)}
+.btn.ready{animation:nudge 1.6s ease-in-out 2}
+@keyframes nudge{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 0 .35rem var(--advbg)}}
+.btn.quiet{border-color:var(--line);font-weight:400}
+.feedback{margin-top:1rem;padding:.6rem .9rem;border-radius:.45rem;font-size:.95rem;display:none}
+.feedback.show{display:block}
+.feedback.ok{background:var(--okbg);color:var(--ok)}
+.feedback.warn{background:var(--warnbg);color:var(--warn)}
+.answers{margin-top:.8rem;font-size:1.1rem;display:none}
+.answers.show{display:block}
+.answers li{margin:.2rem 0}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:.3rem 1.1rem;font-size:.72rem;color:var(--muted);margin:.2rem 0 1rem}
+.legend b{font-weight:700}
+
+/* reveal (frågebisatser) */
+.qline{font-size:1.7rem;margin:.2rem 0 1rem}
+.bline{font-size:1.9rem;line-height:1.6;padding:1rem 1.2rem;border-radius:.6rem;background:var(--panel);border:2px solid var(--line);min-height:5rem}
+.bline .stub{color:var(--muted)}
+.tok{display:inline;transition:opacity .35s, filter .35s}
+.tok.hidden{opacity:0;filter:blur(6px)}
+.mk{font-weight:700}
+.plain .mk{color:inherit;font-weight:400}
+.note{color:var(--muted);font-size:.85rem;margin-top:.7rem}
+
+/* matching (att-bisatser) */
+.match{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:1.4rem;align-items:start}
+.cards{display:flex;flex-direction:column;gap:.5rem}
+.card{display:flex;align-items:center;gap:.5rem;padding:.45rem .6rem;border-radius:.5rem;background:var(--panel);border:2px solid var(--line);cursor:pointer}
+.card.sel{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent) inset}
+.card.used{opacity:.4}
+.card .words{display:flex;flex-wrap:wrap;gap:.25rem;flex:1}
+.card .tile{font-size:1rem;padding:.1rem .4rem;box-shadow:0 .12rem 0 var(--tile-edge);cursor:pointer}
+.card .mini{border:2px solid var(--add);color:var(--add);background:transparent;border-radius:.35rem;font-size:.7rem;padding:.1rem .4rem;font-weight:700;white-space:nowrap}
+.slots{display:flex;flex-direction:column;gap:.55rem}
+.slot{padding:.55rem .8rem;border-radius:.5rem;border:2px dashed var(--line);background:var(--panel);font-size:1.15rem;cursor:pointer;min-height:2.8rem}
+.slot.sel{border-style:solid;border-color:var(--accent)}
+.slot .fill{color:var(--add);font-weight:700}
+.slot .blank{display:inline-block;min-width:6em;border-bottom:2px solid var(--muted);height:1em;vertical-align:baseline}
+.slot .n{color:var(--muted);margin-right:.4rem}
+
+.card.open{flex-direction:column;align-items:stretch;cursor:default;border-color:var(--accent)}
+.card .orig{flex:1;font-size:1.1rem}
+.card.open .orig{font-size:1rem;color:var(--muted)}
+.card .strip{min-height:3.2rem;padding:.55rem .6rem .7rem;gap:.4rem}
+.card .strip.empty::before{top:.9rem;font-size:.75rem}
+.card .bank{padding:.4rem 0;min-height:2.6rem;margin:0;gap:.4rem}
+.card.open .tile{font-size:1.3rem;padding:.2rem .55rem;cursor:grab;box-shadow:0 .18rem 0 var(--tile-edge)}
+.card .row{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center}
+.card .cmsg{font-size:.8rem;color:var(--warn)}
+.card .check{color:var(--ok);font-weight:700;font-size:1.1rem}
+.steps{font-size:.85rem;margin:0 0 1rem;padding-left:1.3rem}
+/* full text view */
+.fulltext{font-size:1.35rem;line-height:1.7;max-width:48rem;background:var(--panel);border:2px solid var(--line);border-radius:.6rem;padding:1.2rem 1.5rem;margin-top:1rem;display:none}
+.fulltext.show{display:block}
+.fulltext .missing{color:var(--muted)}
+
+
+/* satsschema */
+.schema-wrap{overflow-x:auto;margin-top:1rem;border-radius:.6rem;border:2px solid var(--line);background:var(--panel)}
+table.schema{border-collapse:collapse;width:100%;min-width:52rem;table-layout:fixed}
+.schema th{font-size:.72rem;text-align:left;padding:.5rem .55rem;border-bottom:2px solid var(--line);border-right:1px solid var(--line)}
+.schema th.c-F{background:var(--advbg)}
+.schema th.c-v{color:var(--verb)} .schema th.c-s{color:var(--subj)} .schema th.c-a{color:var(--adv)}
+.schema tr.help td{font-size:.6rem;color:var(--muted);padding:.35rem .55rem;vertical-align:top;border-right:1px solid var(--line);border-bottom:1px solid var(--line);line-height:1.35}
+.schema td.cell{vertical-align:top;padding:.55rem .4rem .75rem;border-right:1px solid var(--line);height:4.2rem}
+.schema td.c-F{background:color-mix(in srgb,var(--advbg) 45%,transparent)}
+.schema th:last-child,.schema td:last-child{border-right:0}
+.schema td.cell{display:table-cell}
+.schema .cellin{display:flex;flex-direction:column;align-items:flex-start;gap:.35rem}
+.schema .tile{font-size:1.05rem;padding:.12rem .45rem .15rem;box-shadow:0 .12rem 0 var(--tile-edge);cursor:default;white-space:normal}
+.readout{font-size:1.9rem;margin:.2rem 0 .8rem;min-height:2.8rem}
+.schemanote{font-size:.85rem;margin-top:.6rem;padding:.45rem .8rem;border-radius:.45rem;background:var(--warnbg);color:var(--warn);display:none}
+.schemanote.show{display:block}
+
+/* inlämning */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:grid;place-items:center;z-index:50;padding:1rem}
+.modal[hidden]{display:none}
+.mbox{background:var(--panel);color:var(--ink);border-radius:.8rem;padding:1.3rem 1.5rem;max-width:46rem;width:100%;max-height:92vh;overflow-y:auto;box-shadow:0 1rem 3rem rgba(0,0,0,.3)}
+.mhead{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;flex-wrap:wrap}
+.mbox h3{font-size:.95rem;margin:1.1rem 0 .4rem}
+.done-list{display:flex;flex-wrap:wrap;gap:.35rem}
+.pill{border:1px solid var(--line);background:var(--board);border-radius:1rem;padding:.1rem .65rem;font-size:.78rem}
+.tipbox{border-left:4px solid var(--adv);background:var(--advbg);border-radius:.3rem;padding:.45rem .7rem;margin:.35rem 0;font-size:.85rem}
+.tipbox.good{border-color:var(--ok);background:var(--okbg)}
+.tipbox b{display:block}
+.again{border:1px solid var(--line);border-radius:.45rem;padding:.5rem .7rem;margin:.4rem 0;font-size:.85rem}
+.again .lbl{display:flex;justify-content:space-between;gap:.5rem;align-items:center;font-weight:700;margin-bottom:.2rem}
+.again .mine{color:var(--verb)}
+.again .right{color:var(--ok)}
+.again .go{border:1px solid var(--line);background:var(--panel);border-radius:.3rem;font-size:.72rem;padding:.05rem .45rem;font-weight:400}
+.mbox h2{margin:0 0 .5rem;font-size:1.3rem}
+.mbox p{font-size:.85rem;margin:.3rem 0 .8rem}
+.mbox label{display:block;font-size:.75rem;font-weight:700;margin:.6rem 0 .25rem}
+.mrow{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.mbox input,.mbox textarea{font:inherit;font-size:.9rem;padding:.4rem .6rem;border:2px solid var(--line);border-radius:.4rem;background:var(--board);color:var(--ink);flex:1;min-width:10rem;width:100%}
+.mbox textarea{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.7rem;word-break:break-all}
+/* adverböversikt */
+.advlink{color:var(--accent);font-weight:700}
+.thq{border:1.5px solid currentColor;background:transparent;border-radius:50%;width:1.25em;height:1.25em;font-size:.85em;line-height:1;padding:0;margin-left:.2rem;color:var(--accent);font-weight:700;vertical-align:.05em}
+.advbox{max-width:60rem}
+.advtop{position:sticky;top:-1.3rem;background:var(--panel);margin:-1.3rem -1.5rem .5rem;padding:1rem 1.5rem 0;z-index:2;border-bottom:1px solid var(--line)}
+.advnav{display:flex;flex-wrap:wrap;gap:.3rem;padding:.5rem 0 .6rem}
+.advnav button{border:1px solid var(--line);background:var(--board);border-radius:1rem;padding:.1rem .7rem;font-size:.75rem}
+.advsec{padding:.7rem 0 .9rem;border-bottom:1px solid var(--line);scroll-margin-top:8rem}
+.advsec:last-child{border-bottom:0}
+.advsec h3{margin:0 0 .15rem;font-size:1.05rem}
+.advsec .q{color:var(--muted);font-size:.8rem;font-style:italic;margin-bottom:.35rem}
+.advsec p{font-size:.85rem;margin:.3rem 0}
+.advsec .ex{font-size:.9rem;margin:.2rem 0 .2rem .8rem}
+.advsec .ex b{color:var(--adv)}
+.words{display:flex;flex-wrap:wrap;gap:.3rem;margin:.35rem 0}
+.w{background:var(--board);border:1px solid var(--line);border-radius:.3rem;padding:.05rem .45rem;font-size:.85rem}
+.advsec.sats{background:var(--advbg);border-radius:.5rem;padding:.7rem .9rem;border-bottom:0;margin:.3rem 0}
+.advsec.sats .w{background:var(--panel)}
+.subh{font-size:.75rem;font-weight:700;margin:.5rem 0 0;color:var(--muted)}
+.dirtable{border-collapse:collapse;font-size:.85rem;margin:.4rem 0}
+.dirtable th,.dirtable td{border:1px solid var(--line);padding:.2rem .6rem;text-align:left}
+.dirtable th{font-size:.72rem;background:var(--board)}
+.advsec.flash{animation:flash 1.4s ease-out}
+@keyframes flash{0%{box-shadow:0 0 0 4px var(--accent)}100%{box-shadow:0 0 0 0 transparent}}
+/* bottom nav */
+footer{display:flex;align-items:center;justify-content:center;gap:.8rem;padding:.7rem 1rem 1rem;flex-wrap:wrap}
+.navbtn{border:2px solid var(--ink);background:var(--panel);border-radius:50%;width:2.6rem;height:2.6rem;font-size:1.2rem;font-weight:700;display:grid;place-items:center}
+.navbtn:disabled{opacity:.3;cursor:default}
+.dots{display:flex;gap:.3rem;flex-wrap:wrap;justify-content:center}
+.dot{border:2px solid var(--line);background:var(--panel);border-radius:.3rem;min-width:1.9rem;height:1.9rem;font-size:.75rem;padding:0 .3rem}
+.dot[aria-current="true"]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.dot.done{border-color:var(--ok)}
+
+@media (max-width:800px){
+  .match{grid-template-columns:1fr}
+  .tile{font-size:1.2rem}
+  .flipline .tile{font-size:1.35rem}
+}
+@media (prefers-reduced-motion: reduce){ *{transition:none!important;animation:none!important} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Ordföljd på tavlan</h1>
+  <nav class="tabs" id="tabs" role="tablist"></nav>
+  <div class="tools">
+    <button class="iconbtn" id="submitBtn" title="Se vad du har tränat på" style="border-color:var(--add);color:var(--add);font-weight:700">📝 Min sammanfattning</button>
+    <button class="iconbtn" id="clearAll" title="Rensa alla svar i alla övningar">✕ Rensa allt</button>
+    <button class="iconbtn" id="themeBtn" title="Byt ljust/mörkt">◐ Tema</button>
+    <button class="iconbtn" id="fsBtn" title="Helskärm (F)">⛶ Helskärm</button>
+  </div>
+</header>
+<main id="stage"></main>
+<div class="modal" id="modal" hidden>
+  <div class="mbox" role="dialog" aria-modal="true" aria-labelledby="mtitle">
+    <div class="mhead"><h2 id="mtitle">Min träning</h2><span class="note" id="mdate" style="margin:0"></span></div>
+    <div id="msum"></div>
+    <div class="mrow" style="justify-content:space-between;margin-top:1.2rem;border-top:1px solid var(--line);padding-top:.8rem">
+      <button class="btn quiet" id="mreset">Nollställ min träningshistorik</button>
+      <button class="btn primary" id="mclose">Stäng</button>
+    </div>
+  </div>
+</div>
+<div class="modal" id="advmodal" hidden>
+  <div class="mbox advbox" role="dialog" aria-modal="true" aria-labelledby="advtitle">
+    <div class="advtop"><div class="mhead"><h2 id="advtitle">Adverb</h2><button class="btn" id="advclose">Stäng</button></div>
+    <div class="advnav" id="advnav"></div></div>
+    <div id="advbody"></div>
+  </div>
+</div>
+<footer id="foot"></footer>
+
+<script>
+/* ---------- DATA ---------- */
+/* Roller för satsschemat: s subjekt, v finit verb, a satsadverbial, i infinit verb/partikel,
+   o objekt/komplement, x adverbial, b bisats (hamnar i adverbialkolumnen), q frågeord,
+   g hör ihop med nästa led, as = satsadverbial som står före ett substantiviskt subjekt */
+const S1 = [
+ {n:1,c:['en del stölder','det','på senare tid','har','tyvärr','förekommit'],r:['o','s','x','v','a','i'],fv:'har',ex:'Exempel: Tyvärr har det på senare tid förekommit en del stölder.',st:['på senare tid','det'],
+  a:['På senare tid har det tyvärr förekommit en del stölder','Det har tyvärr på senare tid förekommit en del stölder','Det har på senare tid tyvärr förekommit en del stölder','Det har tyvärr förekommit en del stölder på senare tid','Tyvärr har det på senare tid förekommit en del stölder','En del stölder har tyvärr förekommit på senare tid']},
+ {n:2,c:['på','hon','äntligen','fått','kontraktet','nu','skriva','har'],r:['i','s','a','i','o','x','i','v'],fv:'har',st:['nu','äntligen'],
+  a:['Nu har hon äntligen fått skriva på kontraktet','Äntligen har hon nu fått skriva på kontraktet','Äntligen har hon fått skriva på kontraktet nu','Hon har nu äntligen fått skriva på kontraktet','Hon har äntligen fått skriva på kontraktet nu']},
+ {n:3,c:['ut','alltid','han','måste','varför','se','så sur'],r:['o','a','s','v','q','i','o'],fv:'måste',q:'wh',a:['Varför måste han alltid se så sur ut']},
+ {n:4,c:['ifrån','varför','på en gång','han','inte','sade'],r:['i','q','x','s','a','v'],fv:'sade',q:'wh',a:['Varför sade han inte ifrån på en gång']},
+ {n:5,c:['uppvärmd','lokalen','brukar','vintertid','faktiskt','vara'],r:['o','s','v','x','a','i'],fv:'brukar',st:['vintertid','lokalen'],
+  a:['Vintertid brukar lokalen faktiskt vara uppvärmd','Lokalen brukar faktiskt vara uppvärmd vintertid','Lokalen brukar vintertid faktiskt vara uppvärmd','Lokalen brukar faktiskt vintertid vara uppvärmd']},
+ {n:6,c:['inte','upp','också','behöver','värmas','den','på hösten'],r:['a','i','a','v','i','s','x'],fv:'behöver',q:'yn',
+  a:['Behöver den inte också värmas upp på hösten','Behöver den inte värmas upp också på hösten']},
+ {n:7,c:['har','4.000 kr','hittills','ut','behövt','från kontot','bara','jag','i alla fall','ta'],r:['v','o','x','i','i','x','a','s','a','i'],fv:'har',st:['hittills','jag'],
+  a:['Hittills har jag i alla fall bara behövt ta ut 4.000 kr från kontot','Jag har i alla fall hittills bara behövt ta ut 4.000 kr från kontot','Hittills har jag bara behövt ta ut 4.000 kr från kontot i alla fall','Jag har hittills i alla fall bara behövt ta ut 4.000 kr från kontot','Jag har i alla fall bara behövt ta ut 4.000 kr från kontot hittills']},
+ {n:8,c:['oss','ingen','igen','att känna','kommer','antagligen'],r:['o','s','i','i','v','a'],fv:'kommer',st:['antagligen','ingen'],
+  a:['Antagligen kommer ingen att känna igen oss','Ingen kommer antagligen att känna igen oss']},
+ {n:9,c:['försökt','engelska','aldrig','lära','han','ordentligt','har','sig'],r:['i','o','a','i','s','x','v','o'],fv:'har',q:'yn',
+  a:['Har han aldrig försökt lära sig engelska ordentligt','Har han aldrig ordentligt försökt lära sig engelska']},
+ {n:10,c:['brukar','ibland','tidningen','jag','faktiskt','läsa','på toaletten'],r:['v','x','o','s','a','i','x'],fv:'brukar',st:['ibland'],
+  a:['Ibland brukar jag faktiskt läsa tidningen på toaletten','Jag brukar faktiskt ibland läsa tidningen på toaletten','Jag brukar ibland faktiskt läsa tidningen på toaletten']}
+];
+const S2 = [
+ {n:11,o:'Jag kände tyvärr inte till hans problem',c:['jag','kände','tyvärr','inte','till','hans problem'],r:['s','v','a','a','i','o'],fv:'kände',
+  a:['Tyvärr kände jag inte till hans problem','Hans problem kände jag tyvärr inte till']},
+ {n:12,o:'Han hade tydligen använt droger i flera år',c:['han','hade','tydligen','använt','droger','i flera år'],r:['s','v','a','i','o','x'],fv:'hade',
+  a:['Tydligen hade han använt droger i flera år','I flera år hade han tydligen använt droger','Droger hade han tydligen använt i flera år']},
+ {n:13,o:'Emellertid ville han sätta igång med studierna genast',c:['emellertid','ville','han','sätta igång','med studierna','genast'],r:['a','v','s','i','o','x'],fv:'ville',
+  a:['Han ville emellertid sätta igång med studierna genast','Genast ville han emellertid sätta igång med studierna','Han ville emellertid genast sätta igång med studierna']},
+ {n:14,o:'Han kan också få hjälp av sina föräldrar vid behov',c:['han','kan','också','få','hjälp','av sina föräldrar','vid behov'],r:['s','v','a','i','o','x','x'],fv:'kan',
+  a:['Vid behov kan han också få hjälp av sina föräldrar','Av sina föräldrar kan han också få hjälp vid behov','Han kan också få hjälp vid behov av sina föräldrar']},
+ {n:15,o:'Ekonomin är fortfarande ett bekymmer för honom',c:['ekonomin','är','fortfarande','ett bekymmer','för honom'],r:['s','v','a','o','x'],fv:'är',
+  a:['Fortfarande är ekonomin ett bekymmer för honom','För honom är ekonomin fortfarande ett bekymmer']}
+];
+const S3 = [
+ {n:1,c:['stod','i vikingatidens samhällspyramid','längst ner','de ofria trälarna'],r:['v','x','x','s'],fv:'stod',
+  a:['I vikingatidens samhällspyramid stod de ofria trälarna längst ner','De ofria trälarna stod längst ner i vikingatidens samhällspyramid']},
+ {n:2,c:['oinskränkt makt','trälens ägare','enligt landskapslagen','hade','över hans kropp och liv'],r:['o','s','x','v','x'],fv:'hade',
+  a:['Enligt landskapslagen hade trälens ägare oinskränkt makt över hans kropp och liv','Trälens ägare hade enligt landskapslagen oinskränkt makt över hans kropp och liv']},
+ {n:3,c:['eller säljas','precis som en ko','kunde','skänkas bort','trälen'],r:['i','x','v','i','s'],fv:'kunde',
+  a:['Precis som en ko kunde trälen skänkas bort eller säljas','Trälen kunde skänkas bort eller säljas precis som en ko']},
+ {n:4,c:['en skada mot trälen','därför','betraktas','som en oförrätt mot hans herre','brukade'],r:['s','a','i','o','v'],fv:'brukade',
+  a:['En skada mot trälen brukade därför betraktas som en oförrätt mot hans herre','Därför brukade en skada mot trälen betraktas som en oförrätt mot hans herre']},
+ {n:5,c:['åt stormännen och bönderna','i allmänhet','var','trälarna','drängar och pigor'],r:['o','a','v','s','o'],fv:'var',
+  a:['I allmänhet var trälarna drängar och pigor åt stormännen och bönderna','Trälarna var i allmänhet drängar och pigor åt stormännen och bönderna']},
+ {n:6,c:['trälkvinnorna','på vissa håll','som barnmorskor','lär','hjälpt','till','ha'],r:['s','x','x','v','i','i','i'],fv:'lär',
+  a:['På vissa håll lär trälkvinnorna ha hjälpt till som barnmorskor','Trälkvinnorna lär på vissa håll ha hjälpt till som barnmorskor','Trälkvinnorna lär ha hjälpt till som barnmorskor på vissa håll']},
+ {n:7,c:['på krigståg','trälarna','sina herrar','med','fick','följa'],r:['x','s','o','i','v','i'],fv:'fick',
+  a:['Trälarna fick följa med sina herrar på krigståg','På krigståg fick trälarna följa med sina herrar']},
+ {n:8,c:['de','för sin herres räkning','också','skickas','att begå brott','kunde'],r:['s','x','a','i','o','v'],fv:'kunde',
+  a:['De kunde också skickas att begå brott för sin herres räkning','För sin herres räkning kunde de också skickas att begå brott']},
+ {n:9,c:['i så fall','ställas','trälens ägare','till svars','skulle','för','brottet'],r:['x','i','s','i','v','x','x'],fv:'skulle',
+  a:['I så fall skulle trälens ägare ställas till svars för brottet','Trälens ägare skulle i så fall ställas till svars för brottet']},
+ {n:10,c:['det tyngsta arbetet','till','trälarna','hjälpte','vid kyrkobyggena','med'],r:['o','i','s','v','x','o'],fv:'hjälpte',
+  a:['Vid kyrkobyggena hjälpte trälarna till med det tyngsta arbetet','Trälarna hjälpte till med det tyngsta arbetet vid kyrkobyggena']},
+ {n:11,c:['äktenskap','det','förekommit','med husbondens tillstånd','lär','mellan trälar','ha'],r:['o','s','i','x','v','o','i'],fv:'lär',
+  a:['Med husbondens tillstånd lär det ha förekommit äktenskap mellan trälar','Det lär ha förekommit äktenskap mellan trälar med husbondens tillstånd']},
+ {n:12,c:['även','genom att bli trälar','fattiga fria människor','skaffa sig','kunde','uppehälle'],r:['g','x','s','i','v','o'],fv:'kunde',
+  a:['Genom att bli trälar kunde även fattiga fria människor skaffa sig uppehälle','Även fattiga fria människor kunde skaffa sig uppehälle genom att bli trälar']},
+ {n:13,c:['den katolska kyrkan','i bilden','under 1200-talet','in','kom'],r:['s','x','x','i','v'],fv:'kom',
+  a:['Under 1200-talet kom den katolska kyrkan in i bilden','Den katolska kyrkan kom in i bilden under 1200-talet']},
+ {n:14,c:['antagligen','att höja','trälarnas deltagande i gudstjänstlivet','till','deras människovärde','hjälpte'],r:['a','o','s','i','o','v'],fv:'hjälpte',
+  a:['Trälarnas deltagande i gudstjänstlivet hjälpte antagligen till att höja deras människovärde','Antagligen hjälpte trälarnas deltagande i gudstjänstlivet till att höja deras människovärde']},
+ {n:15,c:['i Sverige','genom ett kungligt påbud','år 1335','träldomen','avskaffades'],r:['x','x','x','s','v'],fv:'avskaffades',
+  a:['I Sverige avskaffades träldomen år 1335 genom ett kungligt påbud','År 1335 avskaffades träldomen i Sverige genom ett kungligt påbud','Genom ett kungligt påbud avskaffades träldomen i Sverige år 1335']}
+];
+const S4 = [
+ {n:1,c:['jag','kan','tyvärr','inte','hjälpa till'],r:['s','v','a','a','i'],u:2},
+ {n:2,c:['de','har','äntligen','bestämt sig'],r:['s','v','a','i'],u:2},
+ {n:3,c:['han','kontaktade','oss','igår kväll'],r:['s','v','o','x'],u:3},
+ {n:4,c:['han','skulle','först','ta reda på','ett par saker'],r:['s','v','a','i','o'],u:2},
+ {n:5,c:['han','skulle','sedan','ringa upp','mig'],r:['s','v','a','i','o'],u:2},
+ {n:6,c:['jag','har','ännu','inte','fått','något besked'],r:['s','v','a','a','i','o'],u:2},
+ {n:7,c:['jag','börjar','naturligtvis','bli','lite otålig'],r:['s','v','a','i','o'],u:2},
+ {n:8,c:['det','är','dyrt','att åka taxi','idag'],r:['s','v','o','o','x'],u:4},
+ {n:9,c:['det','var','vanligt','med hemsydda kläder','förr'],r:['s','v','o','o','x'],u:4},
+ {n:10,c:['det','blir','kallt','i morgon','enligt väderprognosen'],r:['s','v','o','x','x'],u:4},
+ {n:11,c:['jag','brukar','vara','trött','på morgnarna'],r:['s','v','i','o','x'],u:4},
+ {n:12,c:['jag','brukar','tyvärr','ofta','försova mig'],r:['s','v','a','a','i'],u:2},
+ {n:13,c:['jag','måste','då','jäkta','till jobbet'],r:['s','v','a','i','x'],u:2},
+ {n:14,c:['jag','hinner','ibland','ändå','inte','dit','i tid'],r:['s','v','a','a','a','x','x'],u:2},
+ {n:15,c:['jag','blir','då','tvungen','att jobba över istället'],r:['s','v','a','o','o'],u:2}
+];
+const S6 = [
+ {n:8,c:['de','brydde','sig','inte','om','att jag behövde vila'],r:['s','v','a','a','i','b'],u:5,t:[5,1,0,2,3,4],att:true},
+ {n:9,c:['jag','har','vetat','länge','att de ska skiljas'],r:['s','v','i','x','b'],u:4,t:[4,1,0,2,3],att:true},
+ {n:10,c:['varenda människa','begriper','ju','att det inte lönar sig'],r:['s','v','as','b'],u:3,t:[3,1,2,0],att:true},
+ {n:11,c:['barnen','får','lära sig','i skolan','att alla människor har lika värde'],r:['s','v','i','x','b'],u:4,t:[4,1,0,2,3],att:true}
+];
+/* Genomgångsexempel: fr = vilka led som kan stå först */
+const EX = [
+ {n:1,c:['jag','har','aldrig','läst','boken','i skolan'],r:['s','v','a','i','o','x'],fr:[0,5,4]},
+ {n:2,c:['hon','ska','inte','ringa upp','sin mamma','i kväll'],r:['s','v','a','i','o','x'],fr:[0,5]},
+ {n:3,c:['han','blev','tyvärr','sjuk','igår'],r:['s','v','a','o','x'],fr:[0,2,4]},
+ {n:4,c:['du','har','inte','sett','filmen'],r:['s','v','a','i','o'],fr:[0,1]},
+ {n:5,c:['jag','visste','inte','att hon hade flyttat'],r:['s','v','a','b'],fr:[0,3]},
+ {n:6,c:['vad','har','du','ätit','idag'],r:['q','v','s','i','x'],fr:[0],wh:true}
+];
+const BOX = [
+ {id:'a',c:['vi','bör','nog','sälja huset']},
+ {id:'b',c:['vi','har','ännu inte','fått något besked']},
+ {id:'c',c:['du','måste','faktiskt','ta itu med problemet']},
+ {id:'d',c:['landets regering','har','nyligen','störtats']},
+ {id:'e',c:['vi','måste','tyvärr','avstå från lönehöjningar']},
+ {id:'f',c:['jag','har','aldrig','varit med om något liknande']},
+ {id:'g',c:['bussen','är','nästan alltid','försenad nuförtiden']}
+];
+const SLOTS = [
+ {pre:'Det står i tidningen idag',end:'.',ans:'d'},
+ {pre:'Jag måste erkänna',end:'.',ans:'f'},
+ {pre:'Inser du inte',end:'?',ans:'c'},
+ {pre:'De flesta är medvetna om',end:'.',ans:'e'},
+ {pre:'Man börjar vänja sig vid',end:'.',ans:'g'},
+ {pre:'Det är upprörande',end:'.',ans:'b'},
+ {pre:'Vi har kommit fram till',end:'.',ans:'a'}
+];
+const S7 = [
+ {n:1,q:'{q|Vad} {v|har} {a|egentligen} hänt?',m:'Du måste berätta för oss',a:'{q|vad} {n|som} {a|egentligen} {v|har} hänt',e:'.',note:'Frågeordet är subjekt – då lägger man till <b class="r-n">som</b>.'},
+ {n:2,q:'{q|Varför} {v|skickade} {s|han} inga pengar?',m:'Jag begriper inte',a:'{q|varför} {s|han} {a|inte} {v|skickade} några pengar',e:'.',note:'I bisatsen blir <i>inga</i> ofta <i>inte … några</i>. (<i>varför han inga pengar skickade</i> går också, men låter formellt.)'},
+ {n:3,q:'{v|Är} {s|landets ekonomi} {a|verkligen} så svag?',m:'Allt fler undrar',a:'{n|om} {s|landets ekonomi} {a|verkligen} {v|är} så svag',e:'.',note:'Ja/nej-fråga utan frågeord – bisatsen börjar med <b class="r-n">om</b>.'},
+ {n:4,q:'{q|Vilka dagar} {v|är} {s|du} {a|inte} här?',m:'Kan du tala om',a:'{q|vilka dagar} {s|du} {a|inte} {v|är} här',e:'?'},
+ {n:5,q:'{q|Vem} {v|har} ansvaret för att det blir gjort?',m:'Jag tänker ta reda på',a:'{q|vem} {n|som} {v|har} ansvaret för att det blir gjort',e:'.',note:'Frågeordet är subjekt – lägg till <b class="r-n">som</b>.'},
+ {n:6,q:'{q|Hur mycket pengar} {v|är} {s|han} skyldig dem?',m:'Vi har ingen aning om',a:'{q|hur mycket pengar} {s|han} {v|är} skyldig dem',e:'.'},
+ {n:7,q:'{q|Vilka} {v|tänker} {s|du} rösta på i nästa val?',m:'Har du bestämt dig för',a:'{q|vilka} {s|du} {v|tänker} rösta på i nästa val',e:'?'},
+ {n:8,q:'{q|Av vilken anledning} {v|har} {s|de} begärt ökade anslag?',m:'Det framgår inte',a:'{q|av vilken anledning} {s|de} {v|har} begärt ökade anslag',e:'.'},
+ {n:9,q:'{q|Hur många} {v|har} {a|redan} anmält sig till kursen?',m:'Har ni fått besked om',a:'{q|hur många} {n|som} {a|redan} {v|har} anmält sig till kursen',e:'?',note:'<i>Hur många</i> är subjekt – lägg till <b class="r-n">som</b>.'},
+ {n:10,q:'{q|Varför} {v|är} {s|ni} {a|inte} nöjda, och {q|vems fel} {v|är} {s|det} i så fall?',m:'Vi behöver faktiskt få veta',a:'{q|varför} {s|ni} {a|inte} {v|är} nöjda och {q|vems fel} {s|det} {v|är} i så fall',e:'.'},
+ {n:11,q:'{q|Vad} {v|är} {s|det} för program, {q|vem} {v|har} producerat det och {q|vilken tid} {v|sänds} {s|det}?',m:'Det står i tidningen',a:'{q|vad} {s|det} {v|är} för program, {q|vem} {n|som} {v|har} producerat det och {q|vilken tid} {s|det} {v|sänds}',e:'.'},
+ {n:12,q:'{q|Hur} {v|kan} {s|man} ta sig till stugan, och {v|finns} {s|det} elektricitet?',m:'Jag undrar',a:'{q|hur} {s|man} {v|kan} ta sig till stugan och {n|om} {s|det} {v|finns} elektricitet',e:'.'}
+];
+
+const SECTIONS = [
+ {id:'s0',tab:'Satsschema',kind:'schema',items:EX,instr:'Satsschema för huvudsatser',src:'Genomgång – välj vad som ska stå först och se hur leden flyttar sig'},
+ {id:'s1',tab:'Rätt ordföljd',kind:'build',items:S1,instr:'Skriv huvudsatser med rätt ordföljd!',src:'Bygg meningen av orden i ordbanken'},
+ {id:'s2',tab:'Ändra ordföljden',kind:'change',items:S2,instr:'Ändra ordföljden i huvudsatserna!',src:'Flytta ett led först – verbet följer direkt efter'},
+ {id:'s3',tab:'Trälarna',kind:'build',items:S3,text:true,instr:'Skriv huvudsatser med varierad ordföljd så att resultatet blir en välstrukturerad text!',src:'Meningarna bildar tillsammans en text'},
+ {id:'s4',tab:'Muntlig övning',kind:'flip',items:S4,instr:'Börja med det understrukna ordet! Säg meningen högt först – visa sedan.',src:'Tryck på mellanslag för att visa'},
+ {id:'s5',tab:'Att-bisatser',kind:'match',instr:'Gör att-bisatser av huvudsatserna och sätt in dem där det passar!',src:'Klicka på att, välj meningen och placera den'},
+ {id:'s6',tab:'Börja med att-bisatsen',kind:'flip',items:S6,instr:'Börja med att-bisatsen! Säg meningen högt först – visa sedan.',src:'Tryck på mellanslag för att visa'},
+ {id:'s7',tab:'Frågebisatser',kind:'reveal',items:S7,instr:'Gör frågebisatser av frågorna!',src:'Frågan visas först – sedan bisatsen'}
+];
+
+/* ---------- STATE ---------- */
+let state = {sec:0, idx:{}, build:{}, flip:{}, done:{}, log:{}};
+try{ const s = JSON.parse(localStorage.getItem('ordfoljd-v2')||'null'); if(s) state = Object.assign(state,s); }catch(e){}
+function save(){ try{ localStorage.setItem('ordfoljd-v2', JSON.stringify(state)); }catch(e){} }
+if(!state.log) state.log={};
+/* träningslogg – eleven ser inga poäng, loggen går bara ut via resultatkoden */
+function rec(key){ return state.log[key] || (state.log[key]={t:0,f:0,ok:0,h:0,w:[],e:{}}); }
+function logTry(key,ok,ord,tag){
+  const r=rec(key); r.t++;
+  if(ok){ if(r.t===1 && !r.h) r.f=1; r.ok=1; }
+  else { if(tag) r.e[tag]=(r.e[tag]||0)+1; if(ord && !r.w.includes(ord) && r.w.length<4) r.w.push(ord); }
+  save();
+}
+function logShow(key){ const r=rec(key); if(!r.ok){ r.h=1; save(); } }
+function logSeen(key){ rec(key).s=1; save(); }
+const ordStr=a=>a.map(k=>k.toString(36)).join('');
+
+const $ = (s,el=document)=>el.querySelector(s);
+const esc = s=>s.replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+const cap = s=>s.charAt(0).toUpperCase()+s.slice(1);
+const norm = s=>s.toLowerCase().replace(/[.,?!]/g,'').replace(/\s+/g,' ').trim();
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function el(tag,attrs={},html=''){ const e=document.createElement(tag); for(const k in attrs) e.setAttribute(k,attrs[k]); if(html) e.innerHTML=html; return e; }
+
+/* FLIP: reorder children with a smooth glide */
+function flipTo(container, order, dur=750){
+  const kids=[...container.children].filter(k=>k.classList.contains('tile'));
+  const first=new Map(kids.map(k=>[k,k.getBoundingClientRect()]));
+  order.forEach(k=>container.appendChild(k));
+  const tail=[...container.children].filter(k=>!k.classList.contains('tile')); tail.forEach(k=>container.appendChild(k));
+  if(reduce) return;
+  order.forEach((k,i)=>{
+    const a=first.get(k); if(!a) { k.animate([{opacity:0,transform:'scale(.6)'},{opacity:1,transform:'none'}],{duration:dur*.7,easing:'ease-out'}); return; }
+    const b=k.getBoundingClientRect(); const dx=a.left-b.left, dy=a.top-b.top;
+    if(Math.abs(dx)<1&&Math.abs(dy)<1) return;
+    const big=Math.hypot(dx,dy)>150;
+    k.classList.add('lift');
+    k.animate([
+      {transform:`translate(${dx}px,${dy}px)`},
+      {transform:`translate(${dx*.5}px,${dy*.5 - (big?40:12)}px) scale(${big?1.08:1})`,offset:.5},
+      {transform:'none'}
+    ],{duration:dur,easing:'cubic-bezier(.3,.7,.2,1)'}).onfinish=()=>k.classList.remove('lift');
+  });
+}
+
+/* ---------- TABS & NAV ---------- */
+function renderTabs(){
+  const t=$('#tabs'); t.innerHTML='';
+  SECTIONS.forEach((s,i)=>{
+    const b=el('button',{role:'tab','aria-selected':String(i===state.sec)},esc(s.tab));
+    b.onclick=()=>{state.sec=i;save();render();};
+    t.appendChild(b);
+  });
+}
+function curIdx(){ const s=SECTIONS[state.sec]; return state.idx[s.id]||0; }
+function setIdx(i){ const s=SECTIONS[state.sec]; state.idx[s.id]=i; save(); render(); }
+function renderFoot(){
+  const f=$('#foot'); f.innerHTML=''; const s=SECTIONS[state.sec];
+  if(!s.items){ f.append(clearBtn(s)); return; }
+  const i=curIdx();
+  const prev=el('button',{class:'navbtn','aria-label':'Föregående'},'‹'); prev.disabled=i===0; prev.onclick=()=>setIdx(i-1);
+  const next=el('button',{class:'navbtn','aria-label':'Nästa'},'›'); next.disabled=i===s.items.length-1; next.onclick=()=>setIdx(i+1);
+  const dots=el('div',{class:'dots'});
+  s.items.forEach((it,j)=>{
+    const d=el('button',{class:'dot'+(state.done[s.id+':'+j]?' done':''),'aria-label':'Uppgift '+it.n},String(it.n));
+    if(j===i) d.setAttribute('aria-current','true');
+    d.onclick=()=>setIdx(j); dots.appendChild(d);
+  });
+  f.append(prev,dots,next,clearBtn(s));
+}
+function clearSection(s){
+  const pre=s.id+':';
+  for(const bag of [state.build,state.flip,state.done]) for(const k of Object.keys(bag)) if(k.startsWith(pre)) delete bag[k];
+  if(s.kind==='schema') state.ex={};
+  if(s.kind==='match') state.match2=null;
+  save(); render();
+}
+function clearBtn(s){
+  const b=el('button',{class:'btn quiet',style:'margin-left:1rem'},'Rensa övningen');
+  b.title='Tar bort alla svar i den här övningen';
+  b.onclick=()=>clearSection(s);
+  return b;
+}
+function head(s){
+  return `<p class="instr">${esc(s.instr)}</p><p class="src">${esc(s.src)}</p>`;
+}
+
+
+/* ---------- SATSSCHEMA ---------- */
+const COLS=[['F','Fundament'],['v','Finit verb'],['s','Subjekt'],['a','Satsadverbial'],['i','Infinit verb'],['o','Objekt / komplement'],['x','Adverbial']];
+const HELP={
+  F:'Subjekt, adverbial (plats, tid, sätt), objekt eller bisats. I ja/nej-frågor: verb 1. <a href="#" class="advlink" data-adv="top">Mer om adverb</a>',
+  v:'Verb 1 – presens, preteritum',
+  s:'S',
+  a:'Brukar markeras X. Ett satsadverbial ändrar en sats innehåll/budskap. De vanligaste är ”inte”, ”ofta” till exempel, men <a href="#" class="advlink" data-adv="sats">här kan du se fler</a>.',
+  i:'Verb 2, 3, 4 – infinitiv, supinum, partikel',
+  o:'Vem? Vad? Det som påverkas av verbhandlingen. Om/till/med … Komplement efter vara, bli',
+  x:'Var? När? Hur? Plats, tid, sätt. Bisats placeras här (eller först). <a href="#" class="advlink" data-adv="top">Mer om adverb</a>'
+};
+const ADVQ={F:'top',a:'sats',x:'top'};
+const BASE={s:'s',v:'v',a:'a',i:'i',o:'o',x:'x',b:'x',q:'F'};
+function schemaHTML(help){
+  return `<div class="schema-wrap"><table class="schema"><thead><tr>${COLS.map(([k,l])=>`<th class="c-${k}">${l}${ADVQ[k]?` <button class="thq advlink" data-adv="${ADVQ[k]}" title="Läs om adverb" aria-label="Läs om adverb">?</button>`:''}</th>`).join('')}</tr>${help?`<tr class="help">${COLS.map(([k])=>`<td>${HELP[k]}</td>`).join('')}</tr>`:''}</thead><tbody><tr>${COLS.map(([k])=>`<td class="cell c-${k}"><div class="cellin" data-col="${k}"></div></td>`).join('')}</tr></tbody></table></div>`;
+}
+function schemaLayout(order,roles){
+  const cells={F:[],v:[],s:[],a:[],i:[],o:[],x:[]};
+  if(!order.length) return cells;
+  let start=1; cells.F.push(order[0]);
+  while(roles[order[start-1]]==='g' && start<order.length){ cells.F.push(order[start]); start++; }
+  let seenIO=false;
+  const ioLater=j=>order.slice(j+1).some(k=>roles[k]==='i'||roles[k]==='o');
+  const colOf=j=>{
+    const r=roles[order[j]];
+    if(r==='as'){ const nk=order[j+1]; return nk!==undefined && roles[nk]==='s' ? 's' : 'a'; }
+    if(r==='g') return j+1<order.length ? colOf(j+1) : 'x';
+    if(r==='x' && !seenIO && ioLater(j)) return 'a';
+    if(r==='a' && seenIO) return 'x';
+    return BASE[r]||'x';
+  };
+  for(let j=start;j<order.length;j++){ cells[colOf(j)].push(order[j]); if(roles[order[j]]==='i'||roles[order[j]]==='o') seenIO=true; }
+  return cells;
+}
+const schemaReading=cells=>COLS.flatMap(([k])=>cells[k]);
+function animateFrom(first,tiles,dur=750){
+  if(reduce) return;
+  tiles.forEach(k=>{
+    const a=first.get(k); if(!a){ k.animate([{opacity:0,transform:'scale(.6)'},{opacity:1,transform:'none'}],{duration:dur*.7,easing:'ease-out'}); return; }
+    const b=k.getBoundingClientRect(); const dx=a.left-b.left, dy=a.top-b.top;
+    if(Math.abs(dx)<1&&Math.abs(dy)<1) return;
+    const big=Math.hypot(dx,dy)>150;
+    k.classList.add('lift');
+    k.animate([{transform:`translate(${dx}px,${dy}px)`},{transform:`translate(${dx*.5}px,${dy*.5-(big?40:12)}px) scale(${big?1.08:1})`,offset:.5},{transform:'none'}],
+      {duration:dur,easing:'cubic-bezier(.3,.7,.2,1)'}).onfinish=()=>k.classList.remove('lift');
+  });
+}
+/* placera brickor (element i samma ordning som chunks) i schemat */
+function placeInSchema(root,tiles,order,roles,anim){
+  const first=anim?new Map(tiles.map(t=>[t,t.getBoundingClientRect()])):null;
+  const cells=schemaLayout(order,roles);
+  root.querySelectorAll('.cellin').forEach(c=>{ c.innerHTML=''; cells[c.dataset.col].forEach(k=>c.appendChild(tiles[k])); });
+  tiles.forEach(t=>t.textContent=t.dataset.text);
+  const rd=schemaReading(cells); if(rd.length) tiles[rd[0]].textContent=cap(tiles[rd[0]].dataset.text);
+  if(anim) animateFrom(first,order.map(k=>tiles[k]));
+  return rd.join(',')===order.join(',');
+}
+const rank={s:0,as:0,g:0,a:1,i:2,o:3,x:4,b:5};
+function exOrder(it,f){
+  const all=it.c.map((_,k)=>k);
+  if(it.r[f]==='v') return [f,...all.filter(k=>k!==f)];
+  const v=it.r.indexOf('v');
+  return [f,v,...all.filter(k=>k!==f&&k!==v).sort((p,q)=>(rank[it.r[p]]-rank[it.r[q]])||(p-q))];
+}
+function renderSchemaSec(stage){
+  const s=SECTIONS[state.sec], i=curIdx(), it=s.items[i];
+  state.ex=state.ex||{}; let f=state.ex[i]??it.fr[0];
+  const roleCls=r=>({s:'r-s',v:'r-v',a:'r-a',q:'r-q'}[r]||'');
+  stage.innerHTML=head(s)+`<div class="itemhead"><span class="num">${it.n}</span></div>
+    <p class="readout" id="ro"></p>
+    <div class="chips">${it.fr.map(k=>`<button class="chip" data-f="${k}" aria-pressed="${k===f}">${it.r[k]==='v'?'Ja/nej-fråga':'Börja med: '+esc(cap(it.c[k]))}</button>`).join('')}</div>
+    ${schemaHTML(true)}
+    <p class="note">Vad som än står i fundamentet kommer det finita verbet direkt efter – på plats 2. I ja/nej-frågor står verbet först.</p>`;
+  const tiles=it.c.map((w,k)=>{ const t=el('span',{class:'tile '+roleCls(it.r[k])}); t.dataset.text=w; return t; });
+  const root=stage.querySelector('.schema');
+  const show=anim=>{
+    const ord=exOrder(it,f);
+    placeInSchema(root,tiles,ord,it.r,anim);
+    const q=it.wh||it.r[f]==='v';
+    $('#ro').textContent=cap(ord.map(k=>it.c[k]).join(' '))+(q?'?':'.');
+    stage.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',String(+c.dataset.f===f)));
+  };
+  show(false);
+  stage.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{ f=+c.dataset.f; state.ex[i]=f; state.done[s.id+':'+i]=true; save(); show(true); renderFoot(); });
+}
+
+/* ---------- BUILD / CHANGE (drag tiles) ---------- */
+let sortables=[]; let lastDrag=0; let leaveItem=null;
+function renderBuild(stage){
+  const s=SECTIONS[state.sec], i=curIdx(), it=s.items[i], change=s.kind==='change';
+  const modes = it.st ? it.st : [];
+  const mkey = s.id+':'+i;
+  let st = state.build[mkey];
+  if(!st){ st = {mode: modes.length?0:-1, lines:{}}; state.build[mkey]=st; }
+  const lkey = String(st.mode);
+  const logKey = modes.length ? mkey+'/'+(st.mode<0?'f':st.mode) : mkey;
+  if(!st.lines[lkey]){
+    const all=it.c.map((_,k)=>k);
+    if(change) st.lines[lkey]={line:all,bank:[]};
+    else if(st.mode>=0){ const lk=it.c.indexOf(modes[st.mode]); st.lines[lkey]={line:[lk],bank:all.filter(k=>k!==lk)}; }
+    else st.lines[lkey]={line:[],bank:all};
+  }
+  const L=st.lines[lkey];
+  const lockedIdx = st.mode>=0 ? it.c.indexOf(modes[st.mode]) : -1;
+  const endmark = it.q ? '?' : '.';
+
+  let html=head(s)+`<div class="itemhead"><span class="num">${it.n}</span>${it.ex?`<span class="example">${esc(it.ex)}</span>`:''}</div>`;
+  if(change) html+=`<p class="original">${esc(it.o)}.</p>`;
+  if(modes.length){
+    html+=`<div class="chips">`+modes.map((m,k)=>`<button class="chip" data-mode="${k}" aria-pressed="${st.mode===k}">Börja med: ${esc(cap(m))}</button>`).join('')+
+      `<button class="chip" data-mode="-1" aria-pressed="${st.mode===-1}">Fri ordföljd</button></div>`;
+  }
+  html+=`<div class="strip" id="line"></div>`;
+  if(!change) html+=`<div class="banklabel">Ordbank</div><div class="bank" id="bank"></div>`;
+  html+=`<div class="actions">
+    <button class="btn primary" id="check">Kontrollera</button>
+    <button class="btn" id="hint">Visa verbets plats</button>
+    <button class="btn quiet" id="show">Visa förslag</button>
+    <button class="btn quiet" id="sch">${state.schemaBuild?'Dölj satsschema':'Visa satsschema'}</button>
+    <button class="btn quiet" id="reset">Börja om</button>
+    ${s.text?'<button class="btn quiet" id="full">Läs hela texten</button>':''}
+  </div>
+  <div id="schbox"></div>
+  <div class="schemanote" id="schnote">Läser man schemat från vänster blir ordföljden en annan än på raden. Titta på verbets och subjektets plats!</div>
+  <div class="feedback" id="fb"></div>
+  <ol class="answers" id="ans"></ol>
+  ${s.text?'<div class="fulltext" id="ft"></div>':''}`;
+  stage.innerHTML=html;
+
+  const line=$('#line'), bank=$('#bank');
+  const mkTile=k=>{
+    const t=el('span',{class:'tile'+(k===lockedIdx?' locked':''),'data-i':k,tabindex:k===lockedIdx?'-1':'0'});
+    t.dataset.text=it.c[k]; t.textContent=it.c[k]; return t;
+  };
+  L.line.forEach(k=>line.appendChild(mkTile(k)));
+  line.appendChild(el('span',{class:'endmark'},endmark));
+  if(bank) L.bank.forEach(k=>bank.appendChild(mkTile(k)));
+
+  let hintOn=false, checked=false;
+  function decorate(){
+    const tiles=[...line.querySelectorAll('.tile')];
+    line.classList.toggle('empty',tiles.length===0);
+    tiles.forEach((t,j)=>{ t.textContent = j===0 ? cap(t.dataset.text) : t.dataset.text; });
+    if(bank) bank.querySelectorAll('.tile').forEach(t=>t.textContent=t.dataset.text);
+    document.querySelectorAll('.tile').forEach(t=>t.classList.toggle('fv-hint',hintOn && t.dataset.text===it.fv));
+    drawSchema();
+    const chk=$('#check');
+    if(chk) chk.classList.toggle('ready', (!bank||!bank.children.length) && !checked && line.querySelectorAll('.tile').length>1);
+    if(hintOn){
+      const want = it.q==='yn'?0:1;
+      const t=tiles[want];
+      if(t){ const p=el('span',{class:'pos'}); t.appendChild(p);
+        const good=t.dataset.text===it.fv;
+        p.textContent = (want===0?'plats 1: verbet':'plats 2: verbet')+(good?' ✓':' ?');
+        p.className='pos '+(good?'good':'bad'); }
+      if(want===1 && tiles[0]){ const p=el('span',{class:'pos'},it.q?'frågeord':'fundament'); tiles[0].appendChild(p); }
+    }
+  }
+  function drawSchema(){
+    const box=$('#schbox'); if(!box) return;
+    if(!state.schemaBuild){ box.innerHTML=''; $('#schnote').classList.remove('show'); return; }
+    if(!box.firstChild) box.innerHTML=schemaHTML(false);
+    const order=[...line.querySelectorAll('.tile')].map(t=>+t.dataset.i);
+    const clones=it.c.map((w,k)=>{ const t=el('span',{class:'tile'+(hintOn&&w===it.fv?' fv-hint':'')}); t.dataset.text=w; return t; });
+    const same=placeInSchema(box,clones,order,it.r,false);
+    const complete=!bank||!bank.children.length;
+    $('#schnote').classList.toggle('show',!same&&complete&&order.length>1);
+  }
+  function sync(){
+    checked=false;
+    L.line=[...line.querySelectorAll('.tile')].map(t=>+t.dataset.i);
+    if(bank) L.bank=[...bank.querySelectorAll('.tile')].map(t=>+t.dataset.i);
+    save(); decorate(); $('#fb').className='feedback';
+  }
+  decorate();
+
+  // click to move
+  stage.addEventListener('click',e=>{
+    if(Date.now()-lastDrag<350) return;
+    const t=e.target.closest('.tile'); if(!t||t.classList.contains('locked')||!bank) return;
+    const from=t.parentElement, to= from===line?bank:line;
+    const r=t.getBoundingClientRect();
+    if(to===line) line.insertBefore(t,line.querySelector('.endmark')); else bank.appendChild(t);
+    if(!reduce){ const b=t.getBoundingClientRect(); t.animate([{transform:`translate(${r.left-b.left}px,${r.top-b.top}px)`},{transform:'none'}],{duration:350,easing:'cubic-bezier(.3,.7,.2,1)'}); }
+    sync();
+  });
+  stage.addEventListener('keydown',e=>{ if((e.key==='Enter'||e.key===' ')&&e.target.classList.contains('tile')){ e.preventDefault(); e.target.click(); }});
+
+  // drag with Sortable
+  sortables.forEach(x=>x.destroy()); sortables=[];
+  if(window.Sortable){
+    const opts={group:'w'+mkey,animation:220,ghostClass:'ghost',chosenClass:'chosen',filter:'.locked,.endmark',preventOnFilter:false,draggable:'.tile:not(.locked)',
+      onMove:ev=>{ if(ev.related.classList.contains('locked') && !ev.willInsertAfter) return false; if(ev.related.classList.contains('endmark')&&ev.willInsertAfter) return false; },
+      onSort:()=>{ const em=line.querySelector('.endmark'); line.appendChild(em); sync(); },
+      onStart:()=>{ line.querySelectorAll('.pos').forEach(p=>p.remove()); },
+      onEnd:()=>{ lastDrag=Date.now(); }};
+    sortables.push(new Sortable(line,opts));
+    if(bank) sortables.push(new Sortable(bank,opts));
+  }
+
+  // chips
+  stage.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{ st.mode=+c.dataset.mode; save(); render(); });
+
+  $('#hint').onclick=()=>{ hintOn=!hintOn; $('#hint').textContent=hintOn?'Dölj verbets plats':'Visa verbets plats'; decorate(); };
+  $('#sch').onclick=()=>{ state.schemaBuild=!state.schemaBuild; save(); $('#sch').textContent=state.schemaBuild?'Dölj satsschema':'Visa satsschema'; decorate(); };
+  $('#reset').onclick=()=>{ delete st.lines[lkey]; delete state.done[mkey]; save(); render(); };
+
+  const relevant = ()=> st.mode>=0 ? it.a.filter(a=>norm(a).startsWith(norm(modes[st.mode]))) : it.a;
+  $('#show').onclick=()=>{
+    const ol=$('#ans'); const on=!ol.classList.contains('show');
+    ol.innerHTML=relevant().map(a=>`<li>${esc(a)}${endmark}</li>`).join('');
+    if(on) logShow(logKey);
+    ol.classList.toggle('show',on); $('#show').textContent=on?'Dölj förslag':'Visa förslag';
+  };
+  function evaluate(){
+    const tiles=[...line.querySelectorAll('.tile')];
+    const sentence=tiles.map(t=>t.dataset.text).join(' ');
+    const complete = !bank || !bank.children.length;
+    if(!complete || !tiles.length) return null;
+    const ok=it.a.some(a=>norm(a)===norm(sentence));
+    const isOrig = change && norm(sentence)===norm(it.o);
+    const want=it.q==='yn'?0:1;
+    const vpos=tiles.findIndex(t=>t.dataset.text===it.fv);
+    return {ok,isOrig,want,vpos,ord:ordStr(tiles.map(t=>+t.dataset.i))};
+  }
+  /* om eleven går vidare utan att trycka Kontrollera loggas meningen ändå, tyst */
+  leaveItem=()=>{
+    if(checked) return;
+    const r=evaluate(); if(!r) return;
+    checked=true;
+    if(r.ok) logTry(logKey,true);
+    else logTry(logKey,false,r.ord, r.isOrig?'orig':(r.vpos!==r.want?(r.want===0?'v1':'v2'):'ord'));
+  };
+  $('#check').onclick=()=>{
+    checked=true;
+    const fb=$('#fb');
+    const tiles=[...line.querySelectorAll('.tile')];
+    const sentence=tiles.map(t=>t.dataset.text).join(' ');
+    let msg, ok=false; const ord=ordStr(tiles.map(t=>+t.dataset.i));
+    if(bank && bank.children.length){ msg='Alla ord är inte använda än.'; }
+    else if(change && norm(sentence)===norm(it.o)){ msg='Det här är den ursprungliga meningen – flytta något annat led först!'; logTry(logKey,false,ord,'orig'); }
+    else if(it.a.some(a=>norm(a)===norm(sentence))){ ok=true; msg='✓ Snyggt! Den ordföljden fungerar.'; logTry(logKey,true); }
+    else {
+      const want=it.q==='yn'?0:1;
+      const vpos=tiles.findIndex(t=>t.dataset.text===it.fv);
+      msg='Den ordföljden finns inte bland förslagen. Är den ändå möjlig? Diskutera!';
+      if(vpos!==want) msg+= want===0?' Tips: i en ja/nej-fråga står verbet först.':' Tips: står verbet på plats 2?';
+      logTry(logKey,false,ord, vpos!==want ? (want===0?'v1':'v2') : 'ord');
+    }
+    fb.textContent=msg; fb.className='feedback show '+(ok?'ok':'warn');
+    if(ok){ state.done[mkey]=true; save(); renderFoot();
+      if(!reduce) line.animate([{transform:'scale(1)'},{transform:'scale(1.02)'},{transform:'scale(1)'}],{duration:400}); }
+  };
+  if(s.text){
+    $('#full').onclick=()=>{
+      const ft=$('#ft'); const on=!ft.classList.contains('show');
+      if(on){
+        ft.innerHTML='<b>Trälarna</b><br>'+s.items.map((x,j)=>{
+          const bs=state.build[s.id+':'+j]; const l=bs&&bs.lines['-1'];
+          if(l && l.line.length===x.c.length) return esc(cap(l.line.map(k=>x.c[k]).join(' ')))+'.';
+          return `<span class="missing">(${x.n} …)</span>`;
+        }).join(' ');
+      }
+      ft.classList.toggle('show',on); $('#full').textContent=on?'Dölj texten':'Läs hela texten';
+    };
+  }
+}
+
+/* ---------- FLIP (animated word order) ---------- */
+function renderFlip(stage){
+  const s=SECTIONS[state.sec], i=curIdx(), it=s.items[i], key=s.id+':'+i;
+  const target = it.t || [it.u,1,0,...it.c.map((_,k)=>k).filter(k=>![it.u,0,1].includes(k))];
+  const ident = it.c.map((_,k)=>k);
+  const flipped = !!state.flip[key];
+  const asSchema = !!state.schemaFlip;
+  const legend = it.att
+    ? `<div class="legend"><span><b class="r-n">■</b> att-bisats</span><span><b class="r-s">■</b> subjekt</span><span><b class="r-v">■</b> verb</span></div>`
+    : `<div class="legend"><span><b class="r-a">■</b> understruket ord</span><span><b class="r-s">■</b> subjekt</span><span><b class="r-v">■</b> verb</span></div>`;
+  stage.innerHTML = head(s)+legend+`<div class="itemhead"><span class="num">${it.n}</span></div>
+    ${asSchema?'<p class="readout" id="ro"></p>'+schemaHTML(false):'<div class="flipline" id="fl"></div>'}
+    <div class="actions"><button class="btn primary" id="go">${flipped?'Tillbaka':'Visa ny ordföljd'}</button>
+    <button class="btn quiet" id="nx">Nästa mening</button>
+    <button class="btn quiet" id="sv">${asSchema?'Visa som rad':'Visa i satsschema'}</button></div>
+    <p class="note">Tips: tryck mellanslag för att visa, pil höger för nästa.</p>`;
+  const tiles=it.c.map((w,k)=>{
+    const cls = k===0?'r-s':k===1?'r-v':k===it.u?(it.att?'r-att':'r-u'):'';
+    const t=el('span',{class:'tile '+cls}); t.dataset.text=w; t.textContent=w; return t;
+  });
+  let draw;
+  if(asSchema){
+    const root=stage.querySelector('.schema');
+    draw=(f,anim)=>{ const ord=f?target:ident; placeInSchema(root,tiles,ord,it.r,anim);
+      $('#ro').textContent=cap(ord.map(k=>it.c[k]).join(' '))+'.'; };
+  } else {
+    const fl=$('#fl');
+    const caps=()=>[...fl.querySelectorAll('.tile')].forEach((t,j)=>t.textContent=j===0?cap(t.dataset.text):t.dataset.text);
+    draw=(f,anim)=>{ const ord=(f?target:ident).map(k=>tiles[k]);
+      if(anim) flipTo(fl,ord); else { ord.forEach(t=>fl.appendChild(t)); fl.appendChild(el('span',{class:'endmark'},'.')); }
+      caps(); };
+  }
+  draw(flipped,false);
+  $('#go').onclick=()=>{
+    const f=!state.flip[key]; state.flip[key]=f; if(f){ state.done[key]=true; logSeen(key); } save();
+    draw(f,true); $('#go').textContent=f?'Tillbaka':'Visa ny ordföljd'; renderFoot();
+  };
+  $('#sv').onclick=()=>{ state.schemaFlip=!asSchema; save(); render(); };
+  $('#nx').onclick=()=>{ if(i<s.items.length-1) setIdx(i+1); };
+  $('#nx').disabled=i===s.items.length-1;
+}
+
+/* ---------- REVEAL (frågebisatser) ---------- */
+function markup(str,plainClass=''){
+  let out='', last=0; const re=/\{(\w)\|([^}]+)\}/g; let m;
+  while((m=re.exec(str))){ out+=`<span class="tok">${esc(str.slice(last,m.index))}</span>`; out+=`<span class="tok"><span class="mk r-${m[1]}">${esc(m[2])}</span></span>`; last=re.lastIndex; }
+  out+=`<span class="tok">${esc(str.slice(last))}</span>`;
+  return out;
+}
+function renderReveal(stage){
+  const s=SECTIONS[state.sec], i=curIdx(), it=s.items[i], key=s.id+':'+i;
+  let shown=false, colors=false;
+  stage.innerHTML=head(s)+`<div class="legend"><span><b class="r-q">■</b> frågeord</span><span><b class="r-s">■</b> subjekt</span><span><b class="r-v">■</b> verb</span><span><b class="r-a">■</b> satsadverbial</span><span><b class="r-n">■</b> som / om</span></div>
+   <div class="itemhead"><span class="num">${it.n}</span></div>
+   <p class="qline plain" id="ql">${markup(it.q)}</p>
+   <div class="bline plain" id="bl"><span class="stub">${esc(it.m)}</span> <span id="bs">…</span></div>
+   <div class="actions"><button class="btn quiet" id="col">Visa ordklasser i frågan</button>
+   <button class="btn primary" id="rev">Visa bisatsen</button></div>
+   ${it.note?`<p class="note" id="nt" hidden>${it.note}</p>`:''}`;
+  $('#col').onclick=()=>{ colors=!colors; $('#ql').classList.toggle('plain',!colors); $('#col').textContent=colors?'Dölj färger':'Visa ordklasser i frågan'; };
+  $('#rev').onclick=()=>{
+    shown=!shown; const bs=$('#bs');
+    if(shown){
+      bs.innerHTML=markup(it.a)+esc(it.e); $('#bl').classList.remove('plain');
+      const toks=[...bs.querySelectorAll('.tok')];
+      toks.forEach(t=>t.classList.add('hidden'));
+      toks.forEach((t,j)=>setTimeout(()=>t.classList.remove('hidden'), reduce?0:120*j+50));
+      if($('#nt')) $('#nt').hidden=false;
+      state.done[key]=true; logSeen(key); save(); renderFoot();
+    } else { bs.textContent='…'; if($('#nt')) $('#nt').hidden=true; }
+    $('#rev').textContent=shown?'Dölj bisatsen':'Visa bisatsen';
+  };
+}
+
+/* ---------- MATCH (att-bisatser) ---------- */
+function renderMatch(stage){
+  const s=SECTIONS[state.sec];
+  if(!state.match2) state.match2={built:{},lines:{},fill:{}};
+  const M=state.match2;
+  let selCard=null, selSlot=null, openId=null, local=[];
+  const CORRECT=[0,1,3,2,4], START=[4,2,0,3,1];
+  const words=b=>['att',...b.c];           // 0 att, 1 subj, 2 verb, 3 satsadv, 4 resten
+  const cls=['r-att','r-s','r-v','r-a',''];
+  const clause=id=>{ const w=words(BOX.find(x=>x.id===id)); return CORRECT.map(k=>w[k]).join(' '); };
+  stage.innerHTML=head(s)+`<ol class="steps"><li>Klicka på en mening i rutan och bygg om den till en <b>att-bisats</b> – dra eller klicka orden i rätt ordning.</li>
+    <li>Klicka på den färdiga bisatsen och sedan på raden där den passar. Flera kombinationer kan fungera – motivera!</li></ol>
+  <div class="match"><div class="cards" id="cards"></div><div class="slots" id="slots"></div></div>
+  <div class="actions"><button class="btn quiet" id="sugg">Visa förslag</button><button class="btn quiet" id="clr">Börja om</button></div>
+  <div class="feedback" id="fb"></div>
+  <p class="instr" style="margin-top:2rem">Börja med att-bisatsen! – finns under nästa flik.</p>`;
+  const cards=$('#cards'), slots=$('#slots'), fb=$('#fb');
+  const say=(t,ok)=>{ fb.textContent=t; fb.className='feedback show '+(ok?'ok':'warn'); };
+
+  function drawCards(){
+    local.forEach(x=>x.destroy()); local=[];
+    cards.innerHTML='';
+    const used=new Set(Object.values(M.fill));
+    BOX.forEach(b=>{
+      const w=words(b);
+      const c=el('div',{class:'card',tabindex:'0'});
+      if(M.built[b.id]){
+        c.classList.toggle('sel',selCard===b.id); c.classList.toggle('used',used.has(b.id));
+        c.innerHTML=`<span class="check">✓</span><div class="words">${CORRECT.map(k=>`<span class="tile ${cls[k]}">${esc(w[k])}</span>`).join('')}</div>`;
+        c.onclick=()=>{ selCard= selCard===b.id?null:b.id; if(selCard&&selSlot!==null) place(); else if(selCard) say('Klicka nu på raden där bisatsen passar.',true); refresh(); };
+      } else if(openId===b.id){
+        c.classList.add('open');
+        const L = M.lines[b.id] || (M.lines[b.id]={line:[],bank:START.slice()});
+        c.innerHTML=`<span class="orig">${esc(cap(b.c.join(' ')))}.</span>
+          <div class="strip"></div><div class="bank"></div>
+          <div class="row"><button class="btn primary" data-a="check">Kontrollera</button><button class="btn quiet" data-a="show">Visa</button><button class="btn quiet" data-a="close">Stäng</button><span class="cmsg"></span></div>`;
+        const line=c.querySelector('.strip'), bank=c.querySelector('.bank'), msg=c.querySelector('.cmsg');
+        const mk=k=>{ const t=el('span',{class:'tile',tabindex:'0','data-i':k}); t.textContent=w[k]; return t; };
+        L.line.forEach(k=>line.appendChild(mk(k))); L.bank.forEach(k=>bank.appendChild(mk(k)));
+        const sync=()=>{ L.line=[...line.children].map(t=>+t.dataset.i); L.bank=[...bank.children].map(t=>+t.dataset.i);
+          line.classList.toggle('empty',!L.line.length); msg.textContent=''; save(); };
+        line.classList.toggle('empty',!L.line.length);
+        c.addEventListener('click',e=>{
+          const t=e.target.closest('.tile'); if(!t||Date.now()-lastDrag<350) return;
+          const r=t.getBoundingClientRect();
+          (t.parentElement===line?bank:line).appendChild(t);
+          if(!reduce){ const q=t.getBoundingClientRect(); t.animate([{transform:`translate(${r.left-q.left}px,${r.top-q.top}px)`},{transform:'none'}],{duration:300,easing:'cubic-bezier(.3,.7,.2,1)'}); }
+          sync();
+        });
+        c.addEventListener('keydown',e=>{ if((e.key==='Enter'||e.key===' ')&&e.target.classList.contains('tile')){e.preventDefault();e.target.click();} });
+        if(window.Sortable){
+          const o={group:'m'+b.id,animation:200,ghostClass:'ghost',chosenClass:'chosen',onSort:sync,onEnd:()=>{lastDrag=Date.now();}};
+          local.push(new Sortable(line,o), new Sortable(bank,o));
+        }
+        c.querySelector('[data-a=check]').onclick=()=>{
+          if(L.bank.length){ msg.textContent='Använd alla ord först.'; return; }
+          if(L.line.join()===CORRECT.join()){
+            M.built[b.id]=true; openId=null; selCard=b.id; logTry('s5:'+b.id,true); save();
+            say('✓ Rätt! Klicka nu på raden där bisatsen passar.',true); drawCards(); refresh();
+          } else {
+            logTry('s5:'+b.id,false,ordStr(L.line), L.line[0]!==0?'att': (L.line.indexOf(3)>L.line.indexOf(2)?'adv':'ord'));
+            msg.textContent = L.line[0]!==0 ? 'Vilket ord inleder en att-bisats?' : 'Inte riktigt – var står satsadverbialet i en bisats?';
+            if(!reduce) line.animate([{transform:'translateX(0)'},{transform:'translateX(-6px)'},{transform:'translateX(6px)'},{transform:'none'}],{duration:300});
+          }
+        };
+        c.querySelector('[data-a=show]').onclick=()=>{
+          logShow('s5:'+b.id);
+          const tiles=[...line.children,...bank.children]; const first=new Map(tiles.map(t=>[t,t.getBoundingClientRect()]));
+          const byI=Object.fromEntries(tiles.map(t=>[t.dataset.i,t]));
+          CORRECT.forEach(k=>line.appendChild(byI[k])); sync(); animateFrom(first,tiles,600);
+        };
+        c.querySelector('[data-a=close]').onclick=()=>{ openId=null; drawCards(); };
+      } else {
+        c.innerHTML=`<span class="orig">${esc(cap(b.c.join(' ')))}.</span><span class="mini">Bygg bisats</span>`;
+        c.onclick=()=>{ openId=b.id; selCard=null; drawCards(); refresh(); };
+      }
+      c.onkeydown=c.onkeydown||(e=>{ if((e.key==='Enter'||e.key===' ')&&e.target===c){e.preventDefault();c.click();} });
+      cards.appendChild(c);
+    });
+  }
+  SLOTS.forEach((sl,k)=>{
+    const d=el('div',{class:'slot',tabindex:'0'});
+    d.onclick=()=>{
+      if(M.fill[k]!==undefined && selCard===null){ delete M.fill[k]; save(); refresh(); return; }
+      selSlot = selSlot===k?null:k;
+      if(selCard) place(); else if(selSlot!==null) say('Välj en färdig bisats i rutan till vänster.',false);
+      refresh();
+    };
+    d.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();d.click();} };
+    slots.appendChild(d);
+  });
+  function place(){
+    for(const k in M.fill) if(M.fill[k]===selCard) delete M.fill[k];
+    M.fill[selSlot]=selCard; save();
+    if(Object.keys(M.fill).length===7) say('Alla rader är ifyllda. Låter varje mening naturlig?',true); else fb.className='feedback';
+    selCard=null; selSlot=null;
+  }
+  function refresh(){
+    const used=new Set(Object.values(M.fill));
+    [...cards.children].forEach((c,j)=>{ const id=BOX[j].id; if(M.built[id]){ c.classList.toggle('sel',selCard===id); c.classList.toggle('used',used.has(id)); } });
+    [...slots.children].forEach((d,k)=>{
+      const sl=SLOTS[k], f=M.fill[k];
+      d.classList.toggle('sel',selSlot===k);
+      d.innerHTML=`<span class="n">${k+1}</span>${esc(sl.pre)} ${f?`<span class="fill">${esc(clause(f))}</span>`:'<span class="blank"></span>'}${esc(sl.end)}`;
+    });
+  }
+  drawCards(); refresh();
+  $('#sugg').onclick=()=>{ BOX.forEach(b=>{ if(!M.built[b.id]) logShow('s5:'+b.id); M.built[b.id]=true; }); openId=null; SLOTS.forEach((sl,k)=>M.fill[k]=sl.ans); save(); drawCards(); refresh(); fb.className='feedback'; };
+  $('#clr').onclick=()=>{ state.match2=null; save(); render(); };
+}
+
+
+
+/* ---------- MIN SAMMANFATTNING ---------- */
+const TIPS={
+  v2:['Verbet på plats 2','I en huvudsats står det finita verbet alltid på plats 2 – oavsett vad som står först. <i>På senare tid <u>har</u> det …</i>'],
+  v1:['Ja/nej-frågor','En ja/nej-fråga börjar med verbet. <i><u>Behöver</u> den …?</i>'],
+  ord:['Ordningen efter verbet','Tänk på satsschemat: subjekt – satsadverbial (inte, alltid …) – infinit verb – objekt – adverbial.'],
+  orig:['Flytta ett led','Flytta ett led till början och sätt verbet direkt efter. <i><u>Tyvärr</u> kände jag …</i>'],
+  att:['Att-bisatser','En att-bisats börjar alltid med <i>att</i>.'],
+  adv:['Satsadverbial i bisatser','I en bisats står satsadverbialet <u>före</u> verbet. <i>… att vi <u>nog bör</u> sälja huset</i>']
+};
+const secById=id=>SECTIONS.findIndex(x=>x.id===id);
+function describeKey(key){
+  const [head,mode]=key.split('/'); const [sid,idx]=head.split(':');
+  const si=secById(sid); if(si<0) return null; const sec=SECTIONS[si];
+  if(sid==='s5'){ const b=BOX.find(x=>x.id===idx); if(!b) return null;
+    const w=['att',...b.c];
+    return {si,sec,label:`${sec.tab}: ${cap(b.c.join(' '))}.`, words:w, end:'', capFirst:false, right:['att',b.c[0],b.c[2],b.c[1],b.c[3]].join(' ')}; }
+  const it=sec.items && sec.items[+idx]; if(!it || !it.a) return null;
+  let right=it.a[0];
+  if(mode!==undefined && mode!=='f'){ const st=it.st[+mode]; right=(it.a.find(a=>norm(a).startsWith(norm(st)))||right); }
+  const lab = `${sec.tab} ${it.n}` + (mode!==undefined ? (mode==='f'?' (fri ordföljd)':` – börja med ”${cap(it.st[+mode])}”`) : '');
+  return {si,sec,it,idx:+idx,mode,label:lab,words:it.c,end:it.q?'?':'.',capFirst:true,right:right+(it.q?'?':'.')};
+}
+function buildSummary(){
+  const log=state.log, keys=Object.keys(log);
+  let h='';
+  // tränat
+  const trained=SECTIONS.map(sec=>{
+    if(sec.kind==='schema') return null;
+    const n = sec.kind==='match' ? BOX.length : sec.items.length;
+    const done=new Set();
+    keys.forEach(k=>{ if(!k.startsWith(sec.id+':')) return; const r=log[k]; if(r.t||r.h||r.s) done.add(k.split('/')[0]); });
+    return done.size ? `<span class="pill">${esc(sec.tab)}: ${done.size} av ${n}</span>` : null;
+  }).filter(Boolean);
+  h+='<h3>Det här har jag tränat på</h3>'+(trained.length?`<div class="done-list">${trained.join('')}</div>`:'<p class="note">Du har inte börjat träna än – välj en flik och sätt igång!</p>');
+  if(!trained.length) return h;
+
+  // regler att träna mer på
+  const tagCount={}; keys.forEach(k=>{ const e=log[k].e||{}; for(const t in e) tagCount[t]=(tagCount[t]||0)+e[t]; });
+  const tagList=Object.keys(tagCount).sort((a,b)=>tagCount[b]-tagCount[a]);
+  const practisedBuild=keys.filter(k=>/^s[123]:/.test(k)&&log[k].t).length;
+  const practisedAtt=keys.filter(k=>/^s5:/.test(k)&&log[k].t).length;
+  const good=[];
+  if(practisedBuild>=3 && !tagCount.v2) good.push(['Verbet på plats 2','Du har satt verbet på rätt plats i huvudsatserna. Bra!']);
+  if(practisedAtt>=3 && !tagCount.adv && !tagCount.att) good.push(['Att-bisatser','Du har byggt att-bisatserna med rätt ordföljd. Bra!']);
+  if(tagList.length){
+    h+='<h3>Det här kan jag träna mer på</h3>'+tagList.map(t=>`<div class="tipbox"><b>${TIPS[t]?TIPS[t][0]:t}</b>${TIPS[t]?TIPS[t][1]:''}</div>`).join('');
+  }
+  if(good.length) h+='<h3>Det här sitter</h3>'+good.map(([a,b])=>`<div class="tipbox good"><b>${a}</b>${esc(b)}</div>`).join('');
+
+  // meningar att titta på igen
+  const again=keys.filter(k=>{ const r=log[k]; return (r.w&&r.w.length) || r.h || (r.t&&!r.ok); })
+    .map(k=>({k,r:log[k],d:describeKey(k)})).filter(x=>x.d)
+    .sort((a,b)=>a.d.si-b.d.si || (a.d.idx??0)-(b.d.idx??0));
+  if(again.length){
+    h+='<h3>Mina meningar att titta på igen</h3>';
+    again.forEach(({k,r,d})=>{
+      const mine=(r.w||[]).map(o=>{ const t=[...o].map(ch=>d.words[parseInt(ch,36)]).join(' '); return (d.capFirst?cap(t):t)+d.end; });
+      h+=`<div class="again"><div class="lbl"><span>${esc(d.label)}</span><button class="go" data-go="${esc(k)}">Gå till uppgiften</button></div>`;
+      mine.forEach(m=>h+=`<div class="mine">✗ Jag skrev: ${esc(m)}</div>`);
+      if(r.ok) h+=`<div class="right">✓ Rätt: ${esc(d.right)}</div>`;
+      else h+=`<div class="note" style="margin:.2rem 0 0">${r.h?'Du tittade på förslaget – prova att bygga meningen själv igen.':'Inte klar än – försök en gång till!'}</div>`;
+      h+='</div>';
+    });
+  }
+  // muntligt
+  const oral=['s4','s6','s7'].map(id=>{ const si=secById(id); const c=keys.filter(k=>k.startsWith(id+':')&&log[k].s).length; return c?`${SECTIONS[si].tab}: ${c} av ${SECTIONS[si].items.length}`:null; }).filter(Boolean);
+  if(oral.length) h+=`<p class="note">Muntliga övningar och visningar: ${esc(oral.join(' · '))}</p>`;
+  return h;
+}
+function goToKey(key){
+  const [head,mode]=key.split('/'); const [sid,idx]=head.split(':');
+  const si=secById(sid); if(si<0) return;
+  state.sec=si;
+  if(sid!=='s5'){ state.idx[sid]=+idx;
+    if(mode!==undefined){ const mk=sid+':'+idx; state.build[mk]=state.build[mk]||{mode:0,lines:{}}; state.build[mk].mode = mode==='f'?-1:+mode; } }
+  save(); $('#modal').hidden=true; render();
+}
+(()=>{
+  const modal=$('#modal');
+  const close=()=>{ modal.hidden=true; };
+  window.addEventListener('pagehide',()=>{ if(leaveItem){ try{ leaveItem(); }catch(e){} } });
+  const fill=()=>{ $('#msum').innerHTML=buildSummary();
+    $('#mdate').textContent=new Date().toLocaleString('sv-SE',{dateStyle:'medium',timeStyle:'short'});
+    $('#msum').querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>goToKey(b.dataset.go)); };
+  $('#submitBtn').onclick=()=>{ if(leaveItem){ try{ leaveItem(); }catch(e){} } fill(); modal.hidden=false; $('#mclose').focus(); };
+  $('#mclose').onclick=close;
+  modal.addEventListener('click',e=>{ if(e.target===modal) close(); });
+  modal.addEventListener('keydown',e=>{ if(e.key==='Escape') close(); e.stopPropagation(); });
+  let arm=null;
+  $('#mreset').onclick=()=>{
+    const b=$('#mreset');
+    if(!arm){ b.textContent='Klicka igen – historiken raderas'; arm=setTimeout(()=>{arm=null;b.textContent='Nollställ min träningshistorik';},3500); return; }
+    clearTimeout(arm); arm=null; state.log={}; save(); b.textContent='Nollställ min träningshistorik'; fill();
+  };
+})();
+
+
+/* ---------- ADVERBÖVERSIKT (egen text) ---------- */
+const ADV = [
+ {id:'top',title:'Vad är ett adverb?',html:`<p>Adverb berättar till exempel <b>när</b>, <b>var</b>, <b>hur</b> eller <b>hur mycket</b> något händer. Vissa adverb säger något om hela satsen – de kallas <b>satsadverb</b>.</p>
+  <p>Adverb böjs inte efter substantiv (jämför adjektiv: <i>en snabb bil – snabba bilar</i>). Men många adverb kan kompareras: <i>fort – fortare – fortast</i>.</p>
+  <p>Ett adverb kan beskriva</p>
+  <div class="ex">ett verb: Hon springer <b>fort</b>.</div>
+  <div class="ex">ett adjektiv: Maten är <b>väldigt</b> god.</div>
+  <div class="ex">ett annat adverb: Han pratar <b>ganska</b> tyst.</div>
+  <div class="ex">en hel sats: Jag kan <b>tyvärr</b> inte komma.</div>`},
+ {id:'plats',title:'Var står adverben i satsschemat?',html:`<p><b>Tids-, rums- och sättsadverb</b> står oftast i kolumnen <b>Adverbial</b> i slutet av satsen – eller i <b>Fundamentet</b> om man vill börja med dem.</p>
+  <div class="ex"><b>Igår</b> åt vi pizza. – Vi åt pizza <b>igår</b>.</div>
+  <p><b>Satsadverb</b> står i kolumnen <b>Satsadverbial</b>, efter verbet och subjektet i en huvudsats. I en bisats står de <b>före</b> verbet.</p>
+  <div class="ex">Jag kommer <b>inte</b>. – … att jag <b>inte</b> kommer.</div>
+  <p>Korta tidsadverb som <i>alltid, ofta, sällan, aldrig, redan, ännu</i> placeras också ofta på satsadverbialets plats: <i>Hon tränar <b>ofta</b> på kvällarna.</i></p>`},
+ {id:'sats',cls:'sats',title:'Satsadverb',q:'Säger något om hela satsens innehåll',html:`<p>Satsadverb kan göra satsen nekande, visa hur säker man är eller vad man tycker. Jämför: <i>Han kommer.</i> – <i>Han kommer <b>inte</b>.</i> – <i>Han kommer <b>kanske</b>.</i> – <i>Han kommer <b>tyvärr</b>.</i></p>
+  <div class="subh">Nekar</div><div class="words">${['inte','aldrig','knappast','ej','icke'].map(w=>`<span class="w">${w}</span>`).join('')}</div>
+  <div class="subh">Visar osäkerhet</div><div class="words">${['kanske','nog','möjligen','troligen','antagligen','förmodligen','säkert'].map(w=>`<span class="w">${w}</span>`).join('')}</div>
+  <div class="subh">Förstärker eller bekräftar</div><div class="words">${['verkligen','faktiskt','absolut','naturligtvis','givetvis','förstås','ju'].map(w=>`<span class="w">${w}</span>`).join('')}</div>
+  <div class="subh">Visar känsla eller åsikt</div><div class="words">${['tyvärr','dessvärre','lyckligtvis','gärna','förgäves'].map(w=>`<span class="w">${w}</span>`).join('')}</div>
+  <div class="subh">Begränsar</div><div class="words">${['bara','endast','enbart'].map(w=>`<span class="w">${w}</span>`).join('')}</div>
+  <div class="subh">Binder ihop med det som sagts tidigare</div><div class="words">${['också','även','dessutom','därför','alltså','ändå','dock','emellertid','däremot','i alla fall','egentligen','åtminstone','tydligen'].map(w=>`<span class="w">${w}</span>`).join('')}</div>
+  <div class="ex">Vi har <b>tyvärr</b> <b>inte</b> fått något svar.</div>
+  <div class="ex">Jag vet att du <b>faktiskt</b> försökte.</div>`},
+ {id:'tid',title:'Tidsadverb',q:'När? Hur ofta? Hur länge?',html:`<div class="words">${['nu','då','sedan','förr','snart','strax','nyss','nyligen','redan','ännu','fortfarande','igen','alltid','ofta','ibland','sällan','aldrig','dagligen','först','sist','äntligen','hittills','efteråt'].map(w=>`<span class="w">${w}</span>`).join('')}</div>
+  <div class="ex">Bussen kommer <b>snart</b>.</div><div class="ex"><b>Ibland</b> cyklar jag till skolan.</div>`},
+ {id:'rum',title:'Rumsadverb',q:'Var? Vart? Varifrån?',html:`<p>Många rumsadverb har olika former beroende på om man <b>är</b> någonstans, <b>rör sig dit</b> eller <b>kommer därifrån</b>.</p>
+  <div style="overflow-x:auto"><table class="dirtable"><tr><th>Var? (är)</th><th>Vart? (rör sig dit)</th><th>Varifrån? (kommer från)</th></tr>
+  ${[['här','hit','härifrån'],['där','dit','därifrån'],['hemma','hem','hemifrån'],['ute','ut','utifrån'],['inne','in','inifrån'],['uppe','upp','uppifrån'],['nere','ner','nerifrån'],['borta','bort','bortifrån']].map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</table></div>
+  <div class="ex">Jag är <b>hemma</b>. – Jag går <b>hem</b>. – Jag går <b>hemifrån</b>.</div>
+  <div class="subh">Fler rumsadverb</div><div class="words">${['överallt','någonstans','ingenstans','utomlands','nära','långt bort','tillbaka','kvar'].map(w=>`<span class="w">${w}</span>`).join('')}</div>`},
+ {id:'satt',title:'Sättsadverb',q:'Hur? På vilket sätt?',html:`<div class="words">${['bra','dåligt','fort','snabbt','långsamt','sakta','tyst','högt','tydligt','noggrant','ordentligt','slarvigt','annorlunda','tillsammans'].map(w=>`<span class="w">${w}</span>`).join('')}</div>
+  <div class="ex">Läraren förklarar <b>tydligt</b>.</div><div class="ex">Kör <b>försiktigt</b>!</div>`},
+ {id:'grad',title:'Gradadverb',q:'Hur mycket? I vilken grad?',html:`<p>Gradadverb står ofta framför ett adjektiv, ett annat adverb eller ett räkneord.</p>
+  <div class="words">${['mycket','lite','ganska','väldigt','jätte-','helt','alldeles','nästan','för','så','särskilt','extremt','ungefär','cirka','drygt','knappt'].map(w=>`<span class="w">${w}</span>`).join('')}</div>
+  <div class="ex">Provet var <b>ganska</b> svårt.</div><div class="ex">Det tar <b>ungefär</b> tio minuter.</div>`},
+ {id:'orsak',title:'Orsaksadverb och frågeadverb',q:'Varför? – och adverb som inleder frågor',html:`<p><b>därför</b> svarar på frågan <i>varför?</i> – <i>Det regnade. <b>Därför</b> stannade vi inne.</i></p>
+  <div class="subh">Frågeadverb</div><div class="words">${['när?','var?','vart?','varifrån?','hur?','hur länge?','hur ofta?','hur mycket?','varför?'].map(w=>`<span class="w">${w}</span>`).join('')}</div>`},
+ {id:'bild',title:'Så bildas och jämförs adverb',html:`<div class="subh">Ändelser</div>
+  <div class="ex"><b>-t</b>: tydlig → tydlig<b>t</b>, snabb → snabb<b>t</b></div>
+  <div class="ex"><b>-en</b>: möjlig → möjlig<b>en</b>, trolig → trolig<b>en</b></div>
+  <div class="ex"><b>-vis</b>: naturlig → naturlig<b>vis</b>, vecka → vecko<b>vis</b></div>
+  <div class="subh">Komparation</div>
+  <div class="ex">fort – fortare – fortast</div><div class="ex">länge – längre – längst</div>
+  <div class="ex">bra/väl – bättre – bäst</div><div class="ex">illa – värre – värst</div><div class="ex">mycket – mer – mest</div>`}
+];
+(()=>{
+  const m=$('#advmodal');
+  $('#advbody').innerHTML=ADV.map(a=>`<section class="advsec ${a.cls||''}" id="adv-${a.id}"><h3>${a.title}</h3>${a.q?`<div class="q">${a.q}</div>`:''}${a.html}</section>`).join('');
+  $('#advnav').innerHTML=ADV.map(a=>`<button data-to="${a.id}">${a.title.replace('Vad är ett adverb?','Översikt').replace('Var står adverben i satsschemat?','I satsschemat').replace('Så bildas och jämförs adverb','Bildning')}</button>`).join('');
+  const go=(id,flash)=>{ const t=$('#adv-'+id); if(!t) return; t.scrollIntoView({block:'start',behavior:reduce?'auto':'smooth'}); if(flash&&id!=='top'){ t.classList.remove('flash'); void t.offsetWidth; t.classList.add('flash'); } };
+  $('#advnav').onclick=e=>{ const b=e.target.closest('[data-to]'); if(b) go(b.dataset.to,true); };
+  window.openAdv=id=>{ m.hidden=false; $('#advclose').focus(); requestAnimationFrame(()=>go(id||'top',true)); };
+  $('#advclose').onclick=()=>{ m.hidden=true; };
+  m.addEventListener('click',e=>{ if(e.target===m) m.hidden=true; });
+  m.addEventListener('keydown',e=>{ if(e.key==='Escape') m.hidden=true; e.stopPropagation(); });
+  document.addEventListener('click',e=>{ const a=e.target.closest('.advlink'); if(!a) return; e.preventDefault(); e.stopPropagation(); openAdv(a.dataset.adv); },true);
+})();
+
+/* ---------- MAIN ---------- */
+function render(){
+  if(leaveItem){ try{ leaveItem(); }catch(e){} leaveItem=null; }
+  renderTabs();
+  const stage=$('#stage'); const s=SECTIONS[state.sec];
+  sortables.forEach(x=>x.destroy()); sortables=[];
+  const fresh=stage.cloneNode(false); stage.replaceWith(fresh); // drop old listeners
+  ({schema:renderSchemaSec,build:renderBuild,change:renderBuild,flip:renderFlip,reveal:renderReveal,match:renderMatch})[s.kind](fresh);
+  renderFoot();
+}
+document.addEventListener('keydown',e=>{
+  if(e.target.closest('input,textarea') || !$('#modal').hidden || !$('#advmodal').hidden) return;
+  const s=SECTIONS[state.sec]; const i=curIdx();
+  if(e.key==='ArrowRight' && s.items && i<s.items.length-1) setIdx(i+1);
+  else if(e.key==='ArrowLeft' && s.items && i>0) setIdx(i-1);
+  else if(e.key===' ' && (s.kind==='flip'||s.kind==='reveal') && !e.target.closest('button')){ e.preventDefault(); ($('#go')||$('#rev')).click(); }
+  else if(e.key.toLowerCase()==='f' && !e.target.closest('button')) toggleFs();
+});
+function toggleFs(){ try{ if(document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); }catch(e){} }
+$('#fsBtn').onclick=toggleFs;
+let clearArm=null;
+$('#clearAll').onclick=()=>{
+  const b=$('#clearAll');
+  if(!clearArm){ b.textContent='Klicka igen för att rensa allt'; b.style.borderColor='var(--verb)'; b.style.color='var(--verb)';
+    clearArm=setTimeout(()=>{ clearArm=null; b.textContent='✕ Rensa allt'; b.style.borderColor=''; b.style.color=''; },3500); return; }
+  clearTimeout(clearArm); clearArm=null; b.textContent='✕ Rensa allt'; b.style.borderColor=''; b.style.color='';
+  state.build={}; state.flip={}; state.done={}; state.ex={}; state.match2=null; state.idx={};
+  save(); render();
+};
+$('#themeBtn').onclick=()=>{
+  const root=document.documentElement; const cur=root.getAttribute('data-theme');
+  const dark = cur ? cur==='dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  root.setAttribute('data-theme',dark?'light':'dark');
+  try{ localStorage.setItem('ordfoljd-theme',dark?'light':'dark'); }catch(e){}
+};
+try{ const th=localStorage.getItem('ordfoljd-theme'); if(th) document.documentElement.setAttribute('data-theme',th); }catch(e){}
+render();
+</script>
+</body>
+</html>
