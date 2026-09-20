@@ -126,7 +126,8 @@ table.schema{border-collapse:collapse;width:100%;min-width:46rem;table-layout:fi
 .card .ex b{color:var(--led)}
 .card .warnrow{font-size:.78rem;color:var(--warn);background:var(--warnbg);border-radius:.3rem;padding:.3rem .5rem;margin-top:.5rem}
 .biff{background:var(--advbg);border-left:4px solid var(--adv);border-radius:.4rem;padding:.7rem .9rem;margin:.9rem 0;font-size:.95rem}
-.biff b{display:block;font-size:1.1rem;margin-bottom:.2rem}
+.biff>b:first-child{display:block;font-size:1.1rem;margin-bottom:.2rem}
+.biff .step{display:block;margin-top:.15rem}
 .cmp{display:grid;grid-template-columns:repeat(auto-fit,minmax(17rem,1fr));gap:.8rem;margin:.8rem 0}
 .cmp div{background:var(--panel);border:2px solid var(--line);border-radius:.5rem;padding:.6rem .8rem}
 .cmp h4{margin:0 0 .3rem;font-size:.8rem;color:var(--muted)}
@@ -302,8 +303,8 @@ const OV=[
 ];
 
 const SECTIONS=[
+ {id:'l',tab:'Inledare',kind:'cards',instr:'Vad är en relativ bisats – och vilket ord inleder den?',src:'som · där · då · vilket · varav · vars'},
  {id:'g',tab:'Genomgång',kind:'demo',items:DEMO,instr:'Så blir två meningar en – med en relativ bisats',src:'Tryck på ”Slå ihop meningarna” och se vad som händer'},
- {id:'l',tab:'Inledare',kind:'cards',instr:'Vilket ord inleder bisatsen?',src:'som · där · då · vilket · varav · vars'},
  {id:'o',tab:'Ordföljd i bisatsen',kind:'order',instr:'Ordföljden i en relativ bisats',src:'Bisatsschema och BIFF-regeln'},
  {id:'q',tab:'Vad kan du redan?',kind:'quiz',instr:'Välj rätt inledare!',src:'Tio meningar – du får förklaringen direkt'},
  {id:'ov',tab:'Övningen (16)',kind:'build',items:OV,instr:'Gör konstruktioner med relativa bisatser! Inled med som, där, då, vilket, varav eller vars.',src:'Avancera Gram – En övning som inte är så lätt, s. 15–17'}
@@ -402,7 +403,7 @@ function clearBtn(s){
 }
 function renderFoot(){
   const f=$('#foot');f.innerHTML='';const s=SECTIONS[state.sec];
-  if(!s.items){f.append(clearBtn(s));return;}
+  if(!s.items){if(s.kind==='quiz')f.append(clearBtn(s));return;}
   const i=curIdx();
   const prev=el('button',{class:'navbtn','aria-label':'Föregående'},'‹');prev.disabled=i===0;prev.onclick=()=>setIdx(i-1);
   const next=el('button',{class:'navbtn','aria-label':'Nästa'},'›');next.disabled=i===s.items.length-1;next.onclick=()=>setIdx(i+1);
@@ -490,9 +491,30 @@ function viewCards(stage){
    {w:'varav',when:'Betyder <i>av vilka</i>. Används när man tar ut en del av en mängd.',
     ex:['Vi har tjugo elever, <b>varav</b> fem är nya.'],warn:''}
   ];
-  stage.innerHTML=head(s)+`<p class="lead">Relativa bisatser säger något mer om ett ord i meningen före – eller om hela meningen. Vilket ord som inleder bisatsen beror på vad bisatsen syftar tillbaka på.</p>
+  const kort=['Jag har en granne.','Han spelar trumpet varje kväll.','Vi bor i ett hus.','Huset byggdes 1910.','Väggarna är tunna.','Det är ett problem.'];
+  stage.innerHTML=head(s)+
+   `<p class="lead">En <b>relativ bisats</b> säger något mer om ett ord i meningen före – eller om hela meningen. Ordet som bisatsen syftar tillbaka på kallas <i>korrelat</i>.</p>
+   <div class="cmp" style="margin-top:1rem">
+     <div><h4>Utan relativa bisatser</h4><p>${kort.map(m=>esc(m)).join(' ')}</p></div>
+     <div><h4>Med relativa bisatser</h4><p id="lang" style="opacity:.25">Tryck på knappen nedanför.</p></div>
+   </div>
+   <div class="actions"><button class="btn primary" id="join">Skriv ihop meningarna</button></div>
+   <p class="note" id="why" hidden>Sex korta meningar blev tre. Texten flyter bättre, och man slipper upprepa <i>han</i>, <i>huset</i> och <i>det</i>.</p>
+   <div class="biff" style="margin-top:1.4rem"><b>Tre saker händer när två meningar blir en</b>
+     <span class="step">1. Ett ord i den andra meningen byts mot en <b>bisatsinledare</b> – <i>som, där, då, vilket, varav, vars</i>.</span>
+     <span class="step">2. Inledaren flyttar längst fram i bisatsen.</span>
+     <span class="step">3. Ordföljden blir <b>bisatsordföljd</b>: subjektet först, och satsadverbialet före verbet.</span></div>
+   <p class="lbl">Vilket ord ska det vara?</p>
+   <p class="lead" style="margin-top:.2rem">Det beror på vad bisatsen syftar tillbaka på.</p>
    <div class="cards">${C.map(c=>`<div class="card"><h3>${c.w}</h3><div class="when">${c.when}</div>${c.ex.map(e=>`<p class="ex">${e}</p>`).join('')}${c.warn?`<div class="warnrow">${c.warn}</div>`:''}</div>`).join('')}</div>
    <p class="note">Kom ihåg: oavsett vilket ord som inleder bisatsen gäller bisatsordföljd – se fliken <b>Ordföljd i bisatsen</b>.</p>`;
+  $('#join').onclick=()=>{
+    const l=$('#lang');
+    l.innerHTML='Jag har en granne <b style="color:var(--led)">som</b> spelar trumpet varje kväll. Vi bor i ett hus <b style="color:var(--led)">som</b> byggdes 1910. Väggarna är tunna, <b style="color:var(--led)">vilket</b> är ett problem.';
+    l.style.transition='opacity .6s';l.style.opacity='0';
+    requestAnimationFrame(()=>{l.style.opacity='1';});
+    $('#why').hidden=false;logSeen('l:0');save();
+  };
 }
 
 /* ===== ORDFÖLJD ===== */
@@ -775,6 +797,7 @@ function buildSummary(){
 
 /* ===== MAIN ===== */
 function render(){
+  if(state.sec>=SECTIONS.length||state.sec<0) state.sec=0;
   if(leaveItem){try{leaveItem();}catch(e){}leaveItem=null;}
   renderTabs();
   const s=SECTIONS[state.sec];
