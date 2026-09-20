@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relativa bisatser</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
+<style>
+:root{
+  --board:#E9EEEC; --panel:#F8FAF9; --ink:#1B2330; --muted:#5A6573; --line:#C9D3D0;
+  --tile:#FFFFFF; --tile-edge:#B9C4C1; --tile-ink:#1B2330;
+  --subj:#1D5FBF; --verb:#C8322B; --adv:#B07A00; --advbg:#FFF1C7; --led:#7A3FB3; --ledbg:#F0E4FB; --add:#1E8A5A;
+  --ok:#1E8A5A; --okbg:#E3F4EB; --warn:#9A5B00; --warnbg:#FFF1D6; --accent:#1D5FBF;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --board:#1A2126; --panel:#222B31; --ink:#EEF2F4; --muted:#A5B0BA; --line:#3A4750;
+    --tile:#2E3A42; --tile-edge:#11171B; --tile-ink:#F4F7F8;
+    --subj:#78A9FF; --verb:#FF7B72; --adv:#F2C14E; --advbg:#4A3C12; --led:#C39BF0; --ledbg:#3B2A4D; --add:#5DD39E;
+    --ok:#5DD39E; --okbg:#173A2A; --warn:#F2C14E; --warnbg:#3F3313; --accent:#78A9FF;
+  }
+}
+:root[data-theme="dark"]{
+  --board:#1A2126; --panel:#222B31; --ink:#EEF2F4; --muted:#A5B0BA; --line:#3A4750;
+  --tile:#2E3A42; --tile-edge:#11171B; --tile-ink:#F4F7F8;
+  --subj:#78A9FF; --verb:#FF7B72; --adv:#F2C14E; --advbg:#4A3C12; --led:#C39BF0; --ledbg:#3B2A4D; --add:#5DD39E;
+  --ok:#5DD39E; --okbg:#173A2A; --warn:#F2C14E; --warnbg:#3F3313; --accent:#78A9FF;
+}
+*{box-sizing:border-box}
+html{font-size:clamp(16px,1.2vw + 6px,25px)}
+body{margin:0;background:var(--board);color:var(--ink);font-family:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;line-height:1.45;min-height:100vh;display:flex;flex-direction:column}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,.tile:focus-visible,.chip:focus-visible,.opt:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+
+header{display:flex;align-items:center;gap:1rem;padding:.7rem 1.2rem;border-bottom:2px solid var(--line);background:var(--panel);flex-wrap:wrap}
+header h1{font-size:1.05rem;margin:0;white-space:nowrap}
+nav.tabs{display:flex;gap:.3rem;flex-wrap:wrap;flex:1}
+nav.tabs button{border:0;background:transparent;padding:.35rem .7rem;border-radius:.4rem;font-size:.78rem;color:var(--muted)}
+nav.tabs button[aria-selected="true"]{background:var(--ink);color:var(--panel)}
+.tools{display:flex;gap:.3rem;flex-wrap:wrap}
+.iconbtn{border:2px solid var(--line);background:var(--panel);border-radius:.4rem;padding:.25rem .55rem;font-size:.75rem}
+
+main{flex:1;width:100%;max-width:1400px;margin:0 auto;padding:1.3rem 1.5rem 1rem}
+.instr{font-style:italic;font-size:1.05rem;margin:0 0 .2rem}
+.src{color:var(--muted);font-size:.72rem;margin:0 0 1.1rem}
+.itemhead{display:flex;align-items:baseline;gap:.8rem;margin-bottom:.5rem}
+.num{font-size:2.4rem;font-weight:700;line-height:1;min-width:1.5em}
+.note{color:var(--muted);font-size:.85rem;margin-top:.6rem}
+.lead{font-size:.95rem;max-width:44rem}
+
+/* brickor */
+.tile{position:relative;display:inline-block;font-size:1.4rem;padding:.22rem .65rem .28rem;background:var(--tile);color:var(--tile-ink);border-radius:.35rem;border:1px solid var(--tile-edge);box-shadow:0 .2rem 0 var(--tile-edge);user-select:none;-webkit-user-select:none;touch-action:none;cursor:grab;white-space:nowrap}
+.tile:active{cursor:grabbing}
+.tile.ghost{opacity:.3}
+.tile.chosen{box-shadow:0 .45rem .6rem rgba(0,0,0,.25)}
+.tile.lift{z-index:3}
+.tile.led{background:var(--ledbg);border-color:var(--led);color:var(--led);font-weight:700;cursor:default}
+.tile.gone{opacity:.35;text-decoration:line-through;text-decoration-thickness:.1em}
+.r-s{border-color:var(--subj)} .r-v{border-color:var(--verb);color:var(--verb)} .r-a{background:var(--advbg);border-color:var(--adv)}
+
+/* rader */
+.strip{position:relative;min-height:3.8rem;padding:.7rem .9rem;border-radius:.6rem;background:var(--panel);border:2px solid var(--line);display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .4rem}
+.strip.empty::before{content:"Dra eller klicka orden hit";color:var(--muted);font-size:.85rem;position:absolute;left:1rem;top:1.15rem;pointer-events:none}
+.bank{min-height:3.6rem;display:flex;flex-wrap:wrap;gap:.5rem .4rem;padding:.7rem .2rem;position:relative}
+.bank.empty::before{content:"Alla ord är placerade – tryck på Kontrollera";color:var(--muted);font-size:.8rem;position:absolute;left:.2rem;top:1rem}
+.lbl{color:var(--muted);font-size:.72rem;margin-top:.8rem}
+.hsline{font-size:1.4rem;margin:.1rem 0 .5rem}
+.s2line{font-size:1.25rem;color:var(--muted);margin:0 0 1rem}
+.endmark{font-size:1.7rem;font-weight:700;order:9999}
+.buildrow{display:flex;gap:.6rem;align-items:stretch;flex-wrap:wrap}
+.buildrow .strip{flex:1;min-width:16rem}
+.bin{width:13rem;min-height:3.8rem;border:2px dashed var(--line);border-radius:.6rem;padding:.5rem .6rem;display:flex;flex-wrap:wrap;gap:.4rem;align-content:flex-start;position:relative;background:transparent}
+.bin::after{content:attr(data-hint);position:absolute;left:.6rem;right:.6rem;top:1.1rem;color:var(--muted);font-size:.72rem;pointer-events:none;text-align:center}
+.bin.full::after{content:""}
+.bin .tile{font-size:1.05rem;padding:.12rem .45rem}
+.binlbl{font-size:.72rem;color:var(--muted);margin:.8rem 0 .15rem}
+
+/* chips */
+.chips{display:flex;gap:.4rem;flex-wrap:wrap;margin:.2rem 0 1rem}
+.chip{border:2px solid var(--line);background:var(--panel);border-radius:2rem;padding:.2rem .9rem;font-size:.95rem}
+.chip[aria-pressed="true"]{border-color:var(--led);background:var(--ledbg);color:var(--led);font-weight:700}
+.chip.no{border-color:var(--verb);color:var(--verb)}
+
+.actions{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1rem}
+.btn{border:2px solid var(--ink);background:var(--panel);border-radius:.45rem;padding:.35rem .9rem;font-size:.85rem;font-weight:700}
+.btn.primary{background:var(--ink);color:var(--panel)}
+.btn.quiet{border-color:var(--line);font-weight:400}
+.btn.ready{animation:nudge 1.6s ease-in-out 2}
+@keyframes nudge{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 0 .35rem var(--advbg)}}
+.feedback{margin-top:.9rem;padding:.6rem .9rem;border-radius:.45rem;font-size:.95rem;display:none}
+.feedback.show{display:block}
+.feedback.ok{background:var(--okbg);color:var(--ok)}
+.feedback.warn{background:var(--warnbg);color:var(--warn)}
+.solution{font-size:1.25rem;margin-top:.7rem;display:none}
+.solution.show{display:block}
+.solution b{color:var(--led)}
+
+/* genomgång */
+.demo{background:var(--panel);border:2px solid var(--line);border-radius:.6rem;padding:1rem 1.1rem}
+.demo .m1{font-size:1.4rem;margin:0 0 .5rem}
+.demo .row2{display:flex;flex-wrap:wrap;gap:.5rem .4rem;align-items:center;min-height:3.4rem}
+.result{font-size:1.5rem;margin-top:.9rem;opacity:0;transition:opacity .5s}
+.result.show{opacity:1}
+.result .led{color:var(--led);font-weight:700}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(19rem,1fr));gap:.8rem;margin-top:.8rem}
+.card{background:var(--panel);border:2px solid var(--line);border-radius:.6rem;padding:.8rem 1rem}
+.card h3{margin:0 0 .1rem;font-size:1.25rem;color:var(--led)}
+.card .when{font-size:.8rem;color:var(--muted);margin-bottom:.4rem}
+.card .ex{font-size:.95rem;margin:.25rem 0}
+.card .ex b{color:var(--led)}
+.card .warnrow{font-size:.78rem;color:var(--warn);background:var(--warnbg);border-radius:.3rem;padding:.3rem .5rem;margin-top:.5rem}
+.biff{background:var(--advbg);border-left:4px solid var(--adv);border-radius:.4rem;padding:.7rem .9rem;margin:.9rem 0;font-size:.95rem}
+.biff>b:first-child{display:block;font-size:1.1rem;margin-bottom:.2rem}
+.biff .step{display:block;margin-top:.15rem}
+.cmp{display:grid;grid-template-columns:repeat(auto-fit,minmax(17rem,1fr));gap:.8rem;margin:.8rem 0}
+.cmp div{background:var(--panel);border:2px solid var(--line);border-radius:.5rem;padding:.6rem .8rem}
+.cmp h4{margin:0 0 .3rem;font-size:.8rem;color:var(--muted)}
+.cmp p{margin:.15rem 0;font-size:1.05rem}
+.cmp u{text-decoration-color:var(--adv);text-decoration-thickness:.12em;text-underline-offset:.15em}
+
+/* quiz */
+.qitem{background:var(--panel);border:2px solid var(--line);border-radius:.6rem;padding:.9rem 1.1rem;margin-bottom:.7rem}
+.qsent{font-size:1.3rem;margin:0 0 .5rem}
+.blank{display:inline-block;min-width:4.5em;border-bottom:3px solid var(--led);height:1em;vertical-align:-.1em}
+.qsent .filled{color:var(--led);font-weight:700}
+.opts{display:flex;gap:.4rem;flex-wrap:wrap}
+.opt{border:2px solid var(--line);background:var(--board);border-radius:.4rem;padding:.2rem .8rem;font-size:.95rem}
+.opt.right{border-color:var(--ok);background:var(--okbg);color:var(--ok);font-weight:700}
+.opt.wrong{border-color:var(--verb);color:var(--verb);text-decoration:line-through}
+.qwhy{font-size:.85rem;margin-top:.5rem;display:none}
+.qwhy.show{display:block}
+
+/* modal */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:grid;place-items:center;z-index:50;padding:1rem}
+.modal[hidden]{display:none}
+.mbox{background:var(--panel);color:var(--ink);border-radius:.8rem;padding:1.3rem 1.5rem;max-width:46rem;width:100%;max-height:92vh;overflow-y:auto;box-shadow:0 1rem 3rem rgba(0,0,0,.3)}
+.mhead{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;flex-wrap:wrap}
+.mbox h2{margin:0 0 .5rem;font-size:1.3rem}
+.mbox h3{font-size:.95rem;margin:1.1rem 0 .4rem}
+.pill{border:1px solid var(--line);background:var(--board);border-radius:1rem;padding:.1rem .65rem;font-size:.78rem;display:inline-block;margin:.1rem .2rem .1rem 0}
+.tipbox{border-left:4px solid var(--adv);background:var(--advbg);border-radius:.3rem;padding:.45rem .7rem;margin:.35rem 0;font-size:.85rem}
+.tipbox.good{border-color:var(--ok);background:var(--okbg)}
+.tipbox b{display:block}
+.again{border:1px solid var(--line);border-radius:.45rem;padding:.5rem .7rem;margin:.4rem 0;font-size:.85rem}
+.again .top{display:flex;justify-content:space-between;gap:.5rem;align-items:center;font-weight:700;margin-bottom:.2rem}
+.again .mine{color:var(--verb)}
+.again .right{color:var(--ok)}
+.go{border:1px solid var(--line);background:var(--panel);border-radius:.3rem;font-size:.72rem;padding:.05rem .45rem;font-weight:400}
+
+footer{display:flex;align-items:center;justify-content:center;gap:.8rem;padding:.7rem 1rem 1rem;flex-wrap:wrap}
+.navbtn{border:2px solid var(--ink);background:var(--panel);border-radius:50%;width:2.5rem;height:2.5rem;font-size:1.2rem;font-weight:700;display:grid;place-items:center}
+.navbtn:disabled{opacity:.3;cursor:default}
+.dots{display:flex;gap:.3rem;flex-wrap:wrap;justify-content:center}
+.dot{border:2px solid var(--line);background:var(--panel);border-radius:.3rem;min-width:1.8rem;height:1.8rem;font-size:.75rem;padding:0 .3rem}
+.dot[aria-current="true"]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.dot.done{border-color:var(--ok)}
+
+@media (max-width:820px){
+  .buildrow{flex-direction:column}
+  .bin{width:100%}
+  .tile{font-size:1.15rem}
+}
+@media (prefers-reduced-motion: reduce){ *{transition:none!important;animation:none!important} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Relativa bisatser</h1>
+  <nav class="tabs" id="tabs" role="tablist"></nav>
+  <div class="tools">
+    <button class="iconbtn" id="sumBtn" title="Se vad du har tränat på" style="border-color:var(--add);color:var(--add);font-weight:700">📝 Min sammanfattning</button>
+    <button class="iconbtn" id="clearAll" title="Rensa alla svar">✕ Rensa allt</button>
+    <button class="iconbtn" id="themeBtn" title="Byt ljust/mörkt">◐ Tema</button>
+    <button class="iconbtn" id="fsBtn" title="Helskärm (F)">⛶ Helskärm</button>
+  </div>
+</header>
+<main id="stage"></main>
+<div class="modal" id="modal" hidden>
+  <div class="mbox">
+    <div class="mhead"><h2>Min träning</h2><span class="note" id="mdate" style="margin:0"></span></div>
+    <div id="msum"></div>
+    <div style="display:flex;justify-content:space-between;gap:.5rem;margin-top:1.2rem;border-top:1px solid var(--line);padding-top:.8rem;flex-wrap:wrap">
+      <button class="btn quiet" id="mreset">Nollställ min träningshistorik</button>
+      <button class="btn primary" id="mclose">Stäng</button>
+    </div>
+  </div>
+</div>
+<footer id="foot"></footer>
+
+<script>
+/* ===== DATA =====
+   roller: s subjekt, v finit verb, a satsadverbial, i infinit verb/partikel,
+           o objekt/komplement, x adverbial, g genitivattribut */
+const LED=['som','där','då','vilket','varav','vars'];
+const LEDWHY={
+ som:'<b>som</b> syftar tillbaka på ett substantiv eller pronomen.',
+ där:'<b>där</b> används när bisatsen handlar om en <i>plats</i>.',
+ då:'<b>då</b> används när bisatsen handlar om en <i>tidpunkt</i>.',
+ vilket:'<b>vilket</b> syftar tillbaka på hela den föregående satsen, inte på ett enskilt ord.',
+ varav:'<b>varav</b> betyder <i>av vilka</i> och används när man anger en del av en större mängd.',
+ vars:'<b>vars</b> är genitiv och står direkt framför sitt huvudord: <i>en tjej vars pappa …</i>'
+};
+
+/* Genomgångens exempel (egna meningar) */
+const DEMO=[
+ {hs:'Jag har en granne',s2:'Han spelar trumpet varje kväll.',c:['han','spelar','trumpet','varje kväll'],r:['s','v','o','x'],led:'som',drop:[0],t:[1,2,3],
+  tip:'<b>han</b> och <b>en granne</b> är samma person. Därför byts <i>han</i> mot <b>som</b>.'},
+ {hs:'Jag gillade filmen',s2:'Vi såg den igår.',c:['vi','såg','den','igår'],r:['s','v','o','x'],led:'som',drop:[2],t:[0,1,3],
+  tip:'Här är <b>som</b> objekt i bisatsen. Då kan man i talspråk utelämna det: <i>filmen vi såg igår</i>.'},
+ {hs:'Hon fick högsta betyg',s2:'Det gjorde hela klassen glad.',c:['det','gjorde','hela klassen','glad'],r:['s','v','o','o'],led:'vilket',drop:[0],t:[1,2,3],
+  tip:'<b>vilket</b> syftar på hela den första satsen – alltså på det som hände. Skriv komma före.'},
+ {hs:'Jag känner en tjej',s2:'Hennes pappa är pilot.',c:['hennes','pappa','är','pilot'],r:['g','s','v','o'],led:'vars',drop:[0],t:[1,2,3],
+  tip:'<b>vars</b> ersätter <i>hennes/hans/deras</i> och står direkt framför sitt huvudord.'},
+ {hs:'Vi åkte till byn',s2:'Mina föräldrar växte upp där.',c:['mina föräldrar','växte upp','där'],r:['s','i','x'],led:'där',drop:[2],t:[0,1],
+  tip:'<b>där</b> handlar om plats. Man kan också säga <i>byn som mina föräldrar växte upp i</i>.'},
+ {hs:'Kursen har trettio deltagare',s2:'Tio av dem är nybörjare.',c:['tio','av dem','är','nybörjare'],r:['s','x','v','o'],led:'varav',drop:[1],t:[0,2,3],
+  tip:'<b>varav</b> = <i>av vilka</i>. Används när man tar ut en del av en mängd.'},
+ {hs:'Jag har en vän',s2:'Hon kom inte på festen.',c:['hon','kom','inte','på festen'],r:['s','v','a','x'],led:'som',drop:[0],t:[2,1,3],
+  tip:'Lägg märke till ordföljden: <b>inte</b> flyttar fram <i>före</i> verbet. I bisatser kommer inte före det finita verbet.'}
+];
+
+/* Diagnos – egna meningar */
+const QUIZ=[
+ {s:['Jag har en kompis ','  bor i Malmö.'],a:'som',why:'<b>som</b> syftar tillbaka på <i>en kompis</i> och är subjekt i bisatsen.'},
+ {s:['Boken ','  jag läste i somras var spännande.'],a:'som',why:'<b>som</b> är objekt här. I talspråk kan det utelämnas: <i>Boken jag läste …</i>'},
+ {s:['Hon fick högsta betyg, ','  hela klassen jublade över.'],a:'vilket',why:'<b>vilket</b> syftar på hela den första satsen – att hon fick högsta betyg.'},
+ {s:['Det är en pojke ','  mamma jobbar på sjukhuset.'],a:'vars',why:'<b>vars</b> är genitiv och står direkt framför huvudordet <i>mamma</i>.'},
+ {s:['Vi åkte till byn ','  mina föräldrar växte upp.'],a:'där',why:'<b>där</b> används om plats.'},
+ {s:['Kursen har trettio deltagare, ','  tio är nybörjare.'],a:'varav',why:'<b>varav</b> betyder <i>av vilka</i> och anger en del av mängden.'},
+ {s:['Han flyttade hit på 90-talet, ','  det var lätt att få jobb.'],a:'då',why:'<b>då</b> används om en tidpunkt.'},
+ {s:['Tåget var försenat, ','  gjorde att vi missade mötet.'],a:'vilket',why:'<b>vilket</b> syftar på hela satsen: att tåget var försenat.'},
+ {s:['Personen ','  du pratade med är min lärare.'],a:'som',why:'<b>som</b> syftar på <i>personen</i>. Prepositionen <i>med</i> står kvar i bisatsen.'},
+ {s:['Vi bor i ett hus ','  byggdes 1910.'],a:'som',why:'<b>som</b> syftar på <i>ett hus</i>. <i>vilket</i> går också, men hör till formellt skriftspråk.'}
+];
+
+/* De 16 uppgifterna (Avancera Gram, En övning som inte är så lätt) */
+const OV=[
+ {n:1,hs:'Vid torget ligger det ett apotek',s2:'Det är nästan alltid öppet, och där kan du köpa din medicin.',
+  c:['det','är','nästan alltid','öppet','och','där','kan','du','köpa','din medicin'],r:['s','v','a','o','x','x','v','s','i','o'],
+  led:'som',drop:[0],t:[[2,1,3,4,5,7,6,8,9]],
+  tip:'Två bisatser i rad: först <b>som</b>, sedan <b>där</b>. Lägg märke till att <i>kan du</i> blir <i>du kan</i>.'},
+ {n:2,hs:'Han har för det mesta ont om pengar',s2:'Det är faktiskt inte så konstigt.',
+  c:['det','är','faktiskt','inte','så konstigt'],r:['s','v','a','a','o'],led:'vilket',drop:[0],t:[[2,3,1,4]],
+  tip:'Båda satsadverbialen (<i>faktiskt inte</i>) står före verbet.'},
+ {n:3,hs:'De har ett sommarhus i skärgården',s2:'De köpte det för tio år sedan.',
+  c:['de','köpte','det','för tio år sedan'],r:['s','v','o','x'],led:'som',drop:[2],t:[[0,1,3]],
+  tip:'<b>som</b> är objekt i bisatsen och ersätter <i>det</i>.'},
+ {n:4,hs:'De köpte sommarhuset av en känd skådespelare',s2:'Skådespelarens far äger hela ön.',
+  c:['skådespelarens','far','äger','hela ön'],r:['g','s','v','o'],led:'vars',drop:[0],t:[[1,2,3]],
+  tip:'Genitiven <i>skådespelarens</i> blir <b>vars</b>.'},
+ {n:5,hs:'Jag har skaffat en dator',s2:'Jag har verkligen stor nytta av den.',
+  c:['jag','har','verkligen','stor nytta','av','den'],r:['s','v','a','o','x','o'],led:'som',drop:[5],t:[[0,2,1,3,4]],
+  tip:'Prepositionen <i>av</i> står kvar sist i bisatsen. Formellt: <i>av vilken jag har stor nytta</i>.'},
+ {n:6,hs:'Jag har alltså skaffat en dator',s2:'Det borde jag naturligtvis ha gjort för länge sedan.',
+  c:['det','borde','jag','naturligtvis','ha gjort','för länge sedan'],r:['o','v','s','a','i','x'],led:'vilket',drop:[0],t:[[2,3,1,4,5]],
+  tip:'Subjektet <i>jag</i> flyttar fram före verbet, och <i>naturligtvis</i> står före <i>borde</i>.'},
+ {n:7,hs:'Till datorn hör ett särskilt bord',s2:'Datorn ska normalt stå på det.',
+  c:['datorn','ska','normalt','stå','på','det'],r:['s','v','a','i','x','o'],led:'som',drop:[5],t:[[0,2,1,3,4]],
+  tip:'Prepositionen <i>på</i> hamnar sist. Formellt: <i>på vilket datorn normalt ska stå</i>.'},
+ {n:8,hs:'Det finns också en hylla',s2:'Där kan jag nu lägga mina manuskript.',
+  c:['där','kan','jag','nu','lägga','mina manuskript'],r:['x','v','s','a','i','o'],led:'där',drop:[0],t:[[2,3,1,4,5]],
+  tip:'<i>där</i> flyttar fram och blir bisatsinledare. Sedan kommer subjekt – satsadverbial – verb.'},
+ {n:9,hs:'Vi brukar jogga ett par kilometer',s2:'Det är enligt läkarna bra för hjärtat.',
+  c:['det','är','enligt läkarna','bra','för hjärtat'],r:['s','v','a','o','x'],led:'vilket',drop:[0],t:[[2,1,3,4],[1,3,4,2]],
+  tip:'<b>vilket</b> syftar på att vi joggar – alltså på hela satsen.'},
+ {n:10,hs:'Kursen har femton deltagare',s2:'Drygt hälften av dem är kvinnor.',
+  c:['drygt hälften','av dem','är','kvinnor'],r:['s','x','v','o'],led:'varav',drop:[1],t:[[0,2,3]],
+  tip:'<i>av dem</i> blir <b>varav</b>, som står först i bisatsen.'},
+ {n:11,hs:'De gifte sig och fick barn på 60-talet',s2:'Då var det som bekant bostadsbrist i Stockholm.',
+  c:['då','var','det','som bekant','bostadsbrist','i Stockholm'],r:['x','v','s','a','o','x'],led:'då',drop:[0],t:[[2,3,1,4,5]],
+  tip:'<i>som bekant</i> fungerar som satsadverbial och står före verbet.'},
+ {n:12,hs:'Såg du det där programmet om orientering',s2:'Stefan var med i det.',
+  c:['Stefan','var med','i','det'],r:['s','v','x','o'],led:'som',drop:[3],t:[[0,1,2]],end:'?',
+  tip:'Prepositionen <i>i</i> står kvar sist. Formellt: <i>i vilket Stefan var med</i>.'},
+ {n:13,hs:'Min man är mycket morgonpigg',s2:'Det är däremot inte jag.',
+  c:['det','är','däremot','inte','jag'],r:['o','v','a','a','s'],led:'vilket',drop:[0],t:[[4,2,3,1]],
+  tip:'Subjektet är <i>jag</i>. Verbet hamnar sist, efter <i>däremot inte</i>.'},
+ {n:14,hs:'Många utvandrade från Sverige på 1860-talet',s2:'Då befann sig landet i djup, ekonomisk kris.',
+  c:['då','befann sig','landet','i djup, ekonomisk kris'],r:['x','v','s','x'],led:'då',drop:[0],t:[[2,1,3]],
+  tip:'<b>då</b> syftar på tidpunkten <i>1860-talet</i>.'},
+ {n:15,hs:'Utvandrarna tog sig först till Göteborg',s2:'Där låg ångfartygen och väntade.',
+  c:['där','låg','ångfartygen','och väntade'],r:['x','v','s','i'],led:'där',drop:[0],t:[[2,1,3]],
+  tip:'<b>där</b> syftar på platsen <i>Göteborg</i>.'},
+ {n:16,hs:'Biljetten kostade över hundra kronor',s2:'Det var ju mycket pengar på den tiden.',
+  c:['det','var','ju','mycket pengar','på den tiden'],r:['s','v','a','o','x'],led:'vilket',drop:[0],t:[[2,1,3,4]],
+  tip:'<i>ju</i> är ett satsadverbial och står före verbet.'}
+];
+
+const SECTIONS=[
+ {id:'l',tab:'Inledare',kind:'cards',instr:'Vad är en relativ bisats – och vilket ord inleder den?',src:'som · där · då · vilket · varav · vars'},
+ {id:'g',tab:'Genomgång',kind:'demo',items:DEMO,instr:'Så blir två meningar en – med en relativ bisats',src:'Tryck på ”Slå ihop meningarna” och se vad som händer'},
+ {id:'q',tab:'Vad kan du redan?',kind:'quiz',instr:'Välj rätt inledare!',src:'Tio meningar – du får förklaringen direkt'},
+ {id:'ov',tab:'Övningen (16)',kind:'build',items:OV,instr:'Gör konstruktioner med relativa bisatser! Inled med som, där, då, vilket, varav eller vars.',src:'Avancera Gram – En övning som inte är så lätt, s. 15–17'}
+];
+
+/* ===== STATE ===== */
+let state={sec:0,idx:{},build:{},demo:{},quiz:{},done:{},log:{}};
+try{const s=JSON.parse(localStorage.getItem('relativa-v1')||'null'); if(s) state=Object.assign(state,s);}catch(e){}
+function save(){try{localStorage.setItem('relativa-v1',JSON.stringify(state));}catch(e){}}
+function rec(k){return state.log[k]||(state.log[k]={t:0,f:0,ok:0,h:0,w:[],e:{}});}
+function logTry(k,ok,ord,tag){const r=rec(k);r.t++;if(ok){if(r.t===1&&!r.h)r.f=1;r.ok=1;}else{if(tag)r.e[tag]=(r.e[tag]||0)+1;if(ord&&!r.w.includes(ord)&&r.w.length<4)r.w.push(ord);}save();}
+function logShow(k){const r=rec(k);if(!r.ok){r.h=1;save();}}
+function logSeen(k){rec(k).s=1;save();}
+const ordStr=a=>a.map(k=>k.toString(36)).join('');
+
+const $=(s,el=document)=>el.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function el(tag,attrs={},html=''){const e=document.createElement(tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(html)e.innerHTML=html;return e;}
+let lastDrag=0,sortables=[],leaveItem=null;
+
+function animateFrom(first,tiles,dur=720){
+  if(reduce) return;
+  tiles.forEach(k=>{
+    const a=first.get(k); if(!a){k.animate([{opacity:0,transform:'scale(.6)'},{opacity:1,transform:'none'}],{duration:dur*.7,easing:'ease-out'});return;}
+    const b=k.getBoundingClientRect(),dx=a.left-b.left,dy=a.top-b.top;
+    if(Math.abs(dx)<1&&Math.abs(dy)<1) return;
+    const big=Math.hypot(dx,dy)>150;
+    k.classList.add('lift');
+    k.animate([{transform:`translate(${dx}px,${dy}px)`},{transform:`translate(${dx*.5}px,${dy*.5-(big?38:12)}px) scale(${big?1.07:1})`,offset:.5},{transform:'none'}],
+      {duration:dur,easing:'cubic-bezier(.3,.7,.2,1)'}).onfinish=()=>k.classList.remove('lift');
+  });
+}
+function flipTo(container,order,dur=720){
+  const kids=[...container.children].filter(k=>k.classList.contains('tile'));
+  const first=new Map(kids.map(k=>[k,k.getBoundingClientRect()]));
+  order.forEach(k=>container.appendChild(k));
+  [...container.children].filter(k=>!k.classList.contains('tile')).forEach(k=>container.appendChild(k));
+  animateFrom(first,order,dur);
+}
+
+/* ===== NAV ===== */
+function renderTabs(){
+  const t=$('#tabs');t.innerHTML='';
+  SECTIONS.forEach((s,i)=>{
+    const b=el('button',{role:'tab','aria-selected':String(i===state.sec)},esc(s.tab));
+    b.onclick=()=>{state.sec=i;save();render();};
+    t.appendChild(b);
+  });
+}
+const curIdx=()=>state.idx[SECTIONS[state.sec].id]||0;
+function setIdx(i){state.idx[SECTIONS[state.sec].id]=i;save();render();}
+function clearSection(s){
+  const pre=s.id+':';
+  for(const bag of [state.build,state.demo,state.quiz,state.done])
+    for(const k of Object.keys(bag)) if(k.startsWith(pre)) delete bag[k];
+  save();render();
+}
+function clearBtn(s){
+  const b=el('button',{class:'btn quiet',style:'margin-left:1rem'},'Rensa övningen');
+  b.onclick=()=>clearSection(s);return b;
+}
+function renderFoot(){
+  const f=$('#foot');f.innerHTML='';const s=SECTIONS[state.sec];
+  if(!s.items){if(s.kind==='quiz')f.append(clearBtn(s));return;}
+  const i=curIdx();
+  const prev=el('button',{class:'navbtn','aria-label':'Föregående'},'‹');prev.disabled=i===0;prev.onclick=()=>setIdx(i-1);
+  const next=el('button',{class:'navbtn','aria-label':'Nästa'},'›');next.disabled=i===s.items.length-1;next.onclick=()=>setIdx(i+1);
+  const dots=el('div',{class:'dots'});
+  s.items.forEach((it,j)=>{
+    const d=el('button',{class:'dot'+(state.done[s.id+':'+j]?' done':''),'aria-label':'Uppgift '+(it.n||j+1)},String(it.n||j+1));
+    if(j===i) d.setAttribute('aria-current','true');
+    d.onclick=()=>setIdx(j);dots.appendChild(d);
+  });
+  f.append(prev,dots,next,clearBtn(s));
+}
+const head=s=>`<p class="instr">${esc(s.instr)}</p><p class="src">${esc(s.src)}</p>`;
+
+/* ===== GENOMGÅNG ===== */
+function viewDemo(stage){
+  const s=SECTIONS[state.sec],i=curIdx(),it=s.items[i],key=s.id+':'+i;
+  const merged=!!state.demo[key];
+  stage.innerHTML=head(s)+`<div class="itemhead"><span class="num">${i+1}</span></div>
+    <div class="demo">
+      <p class="m1">${esc(it.hs)}. <span style="color:var(--muted)">${esc(it.s2)}</span></p>
+      <div class="lbl">Mening 2 – orden som ska bli en bisats</div>
+      <div class="row2" id="r2"></div>
+      <p class="result" id="res"></p>
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="go">${merged?'Visa meningarna igen':'Slå ihop meningarna'}</button>
+      <button class="btn quiet" id="nx">Nästa exempel</button>
+    </div>
+    <p class="note" id="tip" ${merged?'':'hidden'}>${it.tip}</p>
+    <p class="note">Tips: tryck mellanslag för att slå ihop, pil höger för nästa.</p>`;
+  const r2=$('#r2');
+  const roleCls=r=>({s:'r-s',v:'r-v',a:'r-a'}[r]||'');
+  const tiles=it.c.map((w,k)=>{const t=el('span',{class:'tile '+roleCls(it.r[k]),style:'cursor:default'});t.dataset.text=w;t.textContent=w;return t;});
+  const ledTile=el('span',{class:'tile led'});ledTile.textContent=it.led;
+  function draw(m,anim){
+    const first=anim?new Map([...tiles,ledTile].map(t=>[t,t.getBoundingClientRect()])):null;
+    r2.innerHTML='';
+    if(m){
+      r2.appendChild(ledTile);
+      it.t.forEach(k=>r2.appendChild(tiles[k]));
+      it.drop.forEach(k=>{tiles[k].classList.add('gone');r2.appendChild(tiles[k]);});
+    } else {
+      ledTile.remove();
+      it.c.forEach((_,k)=>{tiles[k].classList.remove('gone');r2.appendChild(tiles[k]);});
+    }
+    tiles.forEach((t,k)=>t.textContent=(!m&&k===0)?cap(t.dataset.text):t.dataset.text);
+    const res=$('#res');
+    if(m){
+      res.innerHTML=esc(it.hs)+' <span class="led">'+esc(it.led)+'</span> '+esc(it.t.map(k=>it.c[k]).join(' '))+'.';
+      requestAnimationFrame(()=>res.classList.add('show'));
+    } else res.classList.remove('show');
+    if(anim) animateFrom(first,[ledTile,...tiles]);
+  }
+  draw(merged,false);
+  $('#go').onclick=()=>{
+    const m=!state.demo[key];state.demo[key]=m;
+    if(m){state.done[key]=true;logSeen(key);}
+    save();draw(m,true);
+    $('#go').textContent=m?'Visa meningarna igen':'Slå ihop meningarna';
+    $('#tip').hidden=!m;renderFoot();
+  };
+  $('#nx').onclick=()=>{if(i<s.items.length-1)setIdx(i+1);};
+  $('#nx').disabled=i===s.items.length-1;
+}
+
+/* ===== INLEDARE-KORT ===== */
+function viewCards(stage){
+  const s=SECTIONS[state.sec];
+  const C=[
+   {w:'som',when:'Syftar på ett substantiv eller pronomen – en person, en sak, singular eller plural.',
+    ex:['Jag har en granne <b>som</b> spelar trumpet. <span style="color:var(--muted)">(subjekt)</span>','Filmen <b>som</b> vi såg igår var bra. <span style="color:var(--muted)">(objekt)</span>'],
+    warn:'När <i>som</i> är objekt kan det utelämnas: <i>Filmen vi såg igår</i>. Men när det är subjekt måste det stå kvar.'},
+   {w:'vilken / vilket / vilka',when:'Formellt skriftspråk, och efter en preposition.',
+    ex:['Huset <b>i vilket</b> vi bodde har rivits.','Vardagligt: Huset <b>som</b> vi bodde <b>i</b> har rivits.'],
+    warn:'I vardagligt språk väljer man nästan alltid <i>som</i> och låter prepositionen stå kvar sist.'},
+   {w:'vilket',when:'Syftar på hela den föregående satsen – inte på ett enskilt ord.',
+    ex:['Han kom för sent, <b>vilket</b> irriterade alla.','Det regnade hela veckan, <b>vilket</b> var tråkigt.'],
+    warn:'Här sätter man komma före bisatsen.'},
+   {w:'vars',when:'Genitiv – ersätter hans, hennes, deras. Står direkt framför sitt huvudord.',
+    ex:['Jag känner en tjej <b>vars</b> pappa är pilot.','Ett land <b>vars</b> klimat är varmt året om.'],warn:''},
+   {w:'där',when:'Handlar om en plats.',
+    ex:['Det är staden <b>där</b> jag växte upp.','Jämför: staden <b>som</b> jag växte upp <b>i</b>.'],warn:''},
+   {w:'då',when:'Handlar om en tidpunkt.',
+    ex:['Han flyttade hit på 90-talet, <b>då</b> det var lätt att få jobb.'],warn:''},
+   {w:'varav',when:'Betyder <i>av vilka</i>. Används när man tar ut en del av en mängd.',
+    ex:['Vi har tjugo elever, <b>varav</b> fem är nya.'],warn:''}
+  ];
+  const kort=['Jag har en granne.','Han spelar trumpet varje kväll.','Vi bor i ett hus.','Huset byggdes 1910.','Väggarna är tunna.','Det är ett problem.'];
+  stage.innerHTML=head(s)+
+   `<p class="lead">En <b>relativ bisats</b> säger något mer om ett ord i meningen före – eller om hela meningen. Ordet som bisatsen syftar tillbaka på kallas <i>korrelat</i>.</p>
+   <div class="cmp" style="margin-top:1rem">
+     <div><h4>Utan relativa bisatser</h4><p>${kort.map(m=>esc(m)).join(' ')}</p></div>
+     <div><h4>Med relativa bisatser</h4><p id="lang" style="opacity:.25">Tryck på knappen nedanför.</p></div>
+   </div>
+   <div class="actions"><button class="btn primary" id="join">Skriv ihop meningarna</button></div>
+   <p class="note" id="why" hidden>Sex korta meningar blev tre. Texten flyter bättre, och man slipper upprepa <i>han</i>, <i>huset</i> och <i>det</i>.</p>
+   <div class="biff" style="margin-top:1.4rem"><b>Tre saker händer när två meningar blir en</b>
+     <span class="step">1. Ett ord i den andra meningen byts mot en <b>bisatsinledare</b> – <i>som, där, då, vilket, varav, vars</i>.</span>
+     <span class="step">2. Inledaren flyttar längst fram i bisatsen.</span>
+     <span class="step">3. Ordföljden blir <b>bisatsordföljd</b>: subjektet först, och satsadverbialet före verbet.</span></div>
+   <p class="lbl">Vilket ord ska det vara?</p>
+   <p class="lead" style="margin-top:.2rem">Det beror på vad bisatsen syftar tillbaka på.</p>
+   <div class="cards">${C.map(c=>`<div class="card"><h3>${c.w}</h3><div class="when">${c.when}</div>${c.ex.map(e=>`<p class="ex">${e}</p>`).join('')}${c.warn?`<div class="warnrow">${c.warn}</div>`:''}</div>`).join('')}</div>
+   <p class="note">Kom ihåg: oavsett vilket ord som inleder bisatsen gäller bisatsordföljd – subjektet först, och satsadverbialet (<i>inte, aldrig, faktiskt, ju …</i>) före verbet.</p>`;
+  $('#join').onclick=()=>{
+    const l=$('#lang');
+    l.innerHTML='Jag har en granne <b style="color:var(--led)">som</b> spelar trumpet varje kväll. Vi bor i ett hus <b style="color:var(--led)">som</b> byggdes 1910. Väggarna är tunna, <b style="color:var(--led)">vilket</b> är ett problem.';
+    l.style.transition='opacity .6s';l.style.opacity='0';
+    requestAnimationFrame(()=>{l.style.opacity='1';});
+    $('#why').hidden=false;logSeen('l:0');save();
+  };
+}
+
+/* ===== DIAGNOS ===== */
+function viewQuiz(stage){
+  const s=SECTIONS[state.sec];
+  stage.innerHTML=head(s)+`<div id="qs"></div><p class="note">Du får förklaringen direkt. Ingen poäng räknas – det här är bara för att se vad du redan kan.</p>`;
+  const box=$('#qs');
+  QUIZ.forEach((q,i)=>{
+    const key='q:'+i,picked=state.quiz[key];
+    const d=el('div',{class:'qitem'});
+    const fill=picked?`<span class="filled">${esc(q.a)}</span>`:'<span class="blank"></span>';
+    d.innerHTML=`<p class="qsent">${i+1}. ${esc(q.s[0])}${fill}${esc(q.s[1])}</p>
+      <div class="opts">${LED.map(w=>{
+        let c='opt';
+        if(picked){ if(w===q.a)c+=' right'; else if(w===picked)c+=' wrong'; }
+        return `<button class="${c}" data-w="${w}">${w}</button>`;}).join('')}</div>
+      <p class="qwhy${picked?' show':''}">${picked===q.a?'✓ Rätt. ':'Rätt svar är <b>'+esc(q.a)+'</b>. '}${q.why}</p>`;
+    d.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
+      if(state.quiz[key]) return;
+      state.quiz[key]=b.dataset.w;state.done[s.id+':'+i]=true;
+      logTry(key,b.dataset.w===q.a,null,b.dataset.w===q.a?null:'led-'+q.a);
+      save();viewQuiz(stage);
+    });
+    box.appendChild(d);
+  });
+}
+
+/* ===== ÖVNINGEN ===== */
+function viewBuild(stage){
+  const s=SECTIONS[state.sec],i=curIdx(),it=s.items[i],key=s.id+':'+i;
+  let st=state.build[key];
+  if(!st){st={led:null,line:[],bin:[],bank:it.c.map((_,k)=>k)};state.build[key]=st;}
+  const end=it.end||'.';
+  stage.innerHTML=head(s)+
+   `<div class="itemhead"><span class="num">${it.n}</span></div>
+    <p class="hsline">${esc(it.hs)}.</p>
+    <p class="s2line">${esc(it.s2)}</p>
+    <p class="lbl">1. Vilket ord ska inleda bisatsen?</p>
+    <div class="chips">${LED.map(w=>`<button class="chip" data-led="${w}" aria-pressed="${st.led===w}">${w}</button>`).join('')}</div>
+    <p class="lbl">2. Bygg bisatsen – och lägg ordet som ersätts åt sidan</p>
+    <div class="buildrow">
+      <div class="strip" id="line"></div>
+      <div class="bin" id="bin" data-hint="Ordet som ersätts"></div>
+    </div>
+    <div class="lbl">Ordbank</div><div class="bank" id="bank"></div>
+    <div class="actions">
+      <button class="btn primary" id="check">Kontrollera</button>
+      <button class="btn quiet" id="show">Visa facit</button>
+      <button class="btn quiet" id="reset">Börja om</button>
+    </div>
+    <div class="feedback" id="fb"></div>
+    <p class="solution" id="sol"></p>`;
+  const line=$('#line'),bin=$('#bin'),bank=$('#bank'),fb=$('#fb');
+  const roleCls=r=>({s:'r-s',v:'r-v',a:'r-a'}[r]||'');
+  const mk=k=>{const t=el('span',{class:'tile '+roleCls(it.r[k]),tabindex:'0','data-i':k});t.dataset.text=it.c[k];t.textContent=it.c[k];return t;};
+  let ledTile=null;
+  function paintLed(){
+    if(ledTile) ledTile.remove();
+    if(st.led){ledTile=el('span',{class:'tile led'});ledTile.textContent=st.led;line.insertBefore(ledTile,line.firstChild);}
+    else ledTile=null;
+  }
+  st.line.forEach(k=>line.appendChild(mk(k)));
+  line.appendChild(el('span',{class:'endmark'},end));
+  st.bin.forEach(k=>bin.appendChild(mk(k)));
+  st.bank.forEach(k=>bank.appendChild(mk(k)));
+  paintLed();
+
+  let checked=false;
+  function decorate(){
+    line.classList.toggle('empty',!line.querySelectorAll('.tile:not(.led)').length);
+    bank.classList.toggle('empty',!bank.children.length);
+    bin.classList.toggle('full',!!bin.children.length);
+    const chk=$('#check');
+    if(chk) chk.classList.toggle('ready',!bank.children.length&&!!st.led&&!checked);
+  }
+  function sync(){
+    checked=false;
+    st.line=[...line.querySelectorAll('.tile')].filter(t=>!t.classList.contains('led')).map(t=>+t.dataset.i);
+    st.bin=[...bin.children].map(t=>+t.dataset.i);
+    st.bank=[...bank.children].map(t=>+t.dataset.i);
+    save();fb.className='feedback';decorate();
+  }
+  decorate();
+
+  stage.addEventListener('click',e=>{
+    const t=e.target.closest('.tile');
+    if(!t||t.classList.contains('led')||Date.now()-lastDrag<350) return;
+    const from=t.parentElement;
+    const to = from===bank ? line : (from===line ? bin : bank);
+    const r=t.getBoundingClientRect();
+    if(to===line) line.insertBefore(t,line.querySelector('.endmark')); else to.appendChild(t);
+    if(!reduce){const b=t.getBoundingClientRect();t.animate([{transform:`translate(${r.left-b.left}px,${r.top-b.top}px)`},{transform:'none'}],{duration:320,easing:'cubic-bezier(.3,.7,.2,1)'});}
+    sync();
+  });
+  stage.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.classList.contains('tile')){e.preventDefault();e.target.click();}});
+
+  sortables.forEach(x=>x.destroy());sortables=[];
+  if(window.Sortable){
+    const o={group:'w'+key,animation:200,ghostClass:'ghost',chosenClass:'chosen',filter:'.led,.endmark',draggable:'.tile:not(.led)',
+      onMove:ev=>{if(ev.related.classList.contains('endmark')&&ev.willInsertAfter)return false;if(ev.related.classList.contains('led')&&!ev.willInsertAfter)return false;},
+      onSort:()=>{const em=line.querySelector('.endmark');if(em)line.appendChild(em);sync();},
+      onEnd:()=>{lastDrag=Date.now();}};
+    sortables.push(new Sortable(line,o),new Sortable(bin,o),new Sortable(bank,o));
+  }
+
+  stage.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{
+    st.led=st.led===c.dataset.led?null:c.dataset.led;save();
+    stage.querySelectorAll('.chip').forEach(x=>{x.setAttribute('aria-pressed',String(x.dataset.led===st.led));x.classList.remove('no');});
+    paintLed();checked=false;fb.className='feedback';decorate();
+  });
+
+  function evaluate(){
+    if(bank.children.length||!st.led) return null;
+    const ledOk=st.led===it.led;
+    const binOk=st.bin.length===it.drop.length&&it.drop.every(k=>st.bin.includes(k));
+    const ordOk=it.t.some(t=>t.join()===st.line.join());
+    let tag=null;
+    if(!ledOk) tag='led';
+    else if(!binOk) tag='drop';
+    else if(!ordOk){
+      const v=st.line.findIndex(k=>it.r[k]==='v'),a=st.line.findIndex(k=>it.r[k]==='a');
+      tag=(a>-1&&v>-1&&a>v)?'biff':'ord';
+    }
+    return {ledOk,binOk,ordOk,ok:ledOk&&binOk&&ordOk,tag,ord:st.led+'|'+ordStr(st.line)};
+  }
+  leaveItem=()=>{
+    if(checked)return;const r=evaluate();if(!r)return;checked=true;
+    if(r.ok) logTry(key,true); else logTry(key,false,r.ord,r.tag);
+  };
+  const facit=()=>esc(it.hs)+', <b>'+esc(it.led)+'</b> '+esc(it.t[0].map(k=>it.c[k]).join(' '))+esc(end);
+
+  $('#check').onclick=()=>{
+    checked=true;
+    if(!st.led){fb.textContent='Välj först vilket ord som ska inleda bisatsen.';fb.className='feedback show warn';return;}
+    if(bank.children.length){fb.textContent='Alla ord är inte placerade än. Ordet som ersätts lägger du i rutan till höger.';fb.className='feedback show warn';return;}
+    const r=evaluate();
+    if(r.ok){
+      logTry(key,true);state.done[key]=true;save();
+      fb.innerHTML='✓ Rätt! '+it.tip;fb.className='feedback show ok';
+      $('#sol').innerHTML=facit();$('#sol').classList.add('show');
+      if(!reduce) line.animate([{transform:'scale(1)'},{transform:'scale(1.02)'},{transform:'scale(1)'}],{duration:400});
+      renderFoot();
+    } else {
+      logTry(key,false,r.ord,r.tag);
+      let msg;
+      if(!r.ledOk){msg='Fundera på vad bisatsen syftar tillbaka på. '+LEDWHY[it.led].replace(/<b>|<\/b>/g,'');
+        stage.querySelectorAll('.chip').forEach(x=>x.classList.toggle('no',x.dataset.led===st.led));}
+      else if(!r.binOk) msg='Vilket ord i mening 2 ersätter <b>'+esc(st.led)+'</b>? Lägg det ordet i rutan till höger.';
+      else if(r.tag==='biff') msg='Nästan! Titta på satsadverbialet – i en bisats står det <b>före</b> det finita verbet.';
+      else msg='Inte riktigt. Kom ihåg ordningen: inledare – subjekt – satsadverbial – verb.';
+      fb.innerHTML=msg;fb.className='feedback show warn';
+      if(!reduce) line.animate([{transform:'translateX(0)'},{transform:'translateX(-5px)'},{transform:'translateX(5px)'},{transform:'none'}],{duration:280});
+    }
+  };
+  $('#show').onclick=()=>{
+    const sol=$('#sol'),on=!sol.classList.contains('show');
+    if(on){logShow(key);sol.innerHTML=facit()+'<br><span class="note">'+it.tip+'</span>';}
+    sol.classList.toggle('show',on);$('#show').textContent=on?'Dölj facit':'Visa facit';
+  };
+  $('#reset').onclick=()=>{delete state.build[key];delete state.done[key];save();render();};
+}
+
+/* ===== SAMMANFATTNING ===== */
+const TIPS={
+ led:['Välja rätt inledare','Fråga dig vad bisatsen syftar på: ett ord (<i>som</i>), en plats (<i>där</i>), en tid (<i>då</i>), hela satsen (<i>vilket</i>), en del av en mängd (<i>varav</i>) eller ägande (<i>vars</i>).'],
+ drop:['Vilket ord som ersätts','Bisatsinledaren tar platsen för ett ord i mening 2 – oftast <i>det, den, dem, där</i> eller <i>då</i>. Det ordet ska bort.'],
+ biff:['Satsadverbialet före verbet','I en bisats står <i>inte, aldrig, faktiskt, ju</i> och liknande <b>före</b> det finita verbet.'],
+ ord:['Ordningen i bisatsen','Inledare – subjekt – satsadverbial – verb. Omvänd ordföljd försvinner i bisatsen.'],
+ 'led-som':['När det ska vara <i>som</i>','<b>som</b> syftar tillbaka på ett substantiv eller pronomen.'],
+ 'led-där':['När det ska vara <i>där</i>','<b>där</b> används om plats.'],
+ 'led-då':['När det ska vara <i>då</i>','<b>då</b> används om tidpunkt.'],
+ 'led-vilket':['När det ska vara <i>vilket</i>','<b>vilket</b> syftar på hela den föregående satsen.'],
+ 'led-varav':['När det ska vara <i>varav</i>','<b>varav</b> betyder <i>av vilka</i> – en del av en mängd.'],
+ 'led-vars':['När det ska vara <i>vars</i>','<b>vars</b> är genitiv och står framför sitt huvudord.']
+};
+function buildSummary(){
+  const log=state.log,keys=Object.keys(log);
+  let h='';
+  const trained=[];
+  const dn=(id,n)=>{const c=new Set();keys.forEach(k=>{if(k.startsWith(id+':')&&(log[k].t||log[k].h||log[k].s))c.add(k);});return c.size;};
+  const g=dn('g'),q=keys.filter(k=>k.startsWith('q:')).length,ov=dn('ov');
+  if(g) trained.push(`<span class="pill">Genomgång: ${g} av ${DEMO.length} exempel</span>`);
+  if(q) trained.push(`<span class="pill">Vad kan du redan?: ${q} av ${QUIZ.length}</span>`);
+  if(ov) trained.push(`<span class="pill">Övningen: ${ov} av ${OV.length}</span>`);
+  h+='<h3>Det här har jag tränat på</h3>'+(trained.length?trained.join(''):'<p class="note">Du har inte börjat än – välj en flik och sätt igång!</p>');
+  if(!trained.length) return h;
+
+  const tags={};keys.forEach(k=>{const e=log[k].e||{};for(const t in e)tags[t]=(tags[t]||0)+e[t];});
+  const tl=Object.keys(tags).sort((a,b)=>tags[b]-tags[a]).filter(t=>TIPS[t]);
+  if(tl.length) h+='<h3>Det här kan jag träna mer på</h3>'+tl.map(t=>`<div class="tipbox"><b>${TIPS[t][0]}</b>${TIPS[t][1]}</div>`).join('');
+  const solved=keys.filter(k=>k.startsWith('ov:')&&log[k].ok).length;
+  if(solved>=4&&!tags.biff) h+='<h3>Det här sitter</h3><div class="tipbox good"><b>Bisatsordföljden</b>Du har satt satsadverbialet före verbet. Bra!</div>';
+
+  const again=keys.filter(k=>k.startsWith('ov:')&&((log[k].w&&log[k].w.length)||log[k].h||(log[k].t&&!log[k].ok)))
+    .map(k=>({k,r:log[k],i:+k.split(':')[1]})).filter(x=>OV[x.i]).sort((a,b)=>a.i-b.i);
+  if(again.length){
+    h+='<h3>Mina meningar att titta på igen</h3>';
+    again.forEach(({k,r,i})=>{
+      const it=OV[i],end=it.end||'.';
+      h+=`<div class="again"><div class="top"><span>Uppgift ${it.n}</span><button class="go" data-go="${i}">Gå till uppgiften</button></div>`;
+      (r.w||[]).forEach(o=>{const [ld,od]=o.split('|');
+        h+=`<div class="mine">✗ Jag skrev: … ${esc(ld||'')} ${esc([...(od||'')].map(ch=>it.c[parseInt(ch,36)]).join(' '))}</div>`;});
+      if(r.ok) h+=`<div class="right">✓ Rätt: ${esc(it.hs)}, ${esc(it.led)} ${esc(it.t[0].map(j=>it.c[j]).join(' '))}${esc(end)}</div>`;
+      else h+=`<div class="note" style="margin:.2rem 0 0">${r.h?'Du tittade på facit – prova att bygga meningen själv igen.':'Inte klar än – försök en gång till!'}</div>`;
+      h+='</div>';
+    });
+  }
+  return h;
+}
+(()=>{
+  const m=$('#modal');
+  const fill=()=>{
+    $('#msum').innerHTML=buildSummary();
+    $('#mdate').textContent=new Date().toLocaleString('sv-SE',{dateStyle:'medium',timeStyle:'short'});
+    $('#msum').querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{
+      state.sec=SECTIONS.findIndex(s=>s.id==='ov');state.idx.ov=+b.dataset.go;save();m.hidden=true;render();});
+  };
+  $('#sumBtn').onclick=()=>{if(leaveItem){try{leaveItem();}catch(e){}}fill();m.hidden=false;$('#mclose').focus();};
+  $('#mclose').onclick=()=>{m.hidden=true;};
+  m.addEventListener('click',e=>{if(e.target===m)m.hidden=true;});
+  m.addEventListener('keydown',e=>{if(e.key==='Escape')m.hidden=true;e.stopPropagation();});
+  window.addEventListener('pagehide',()=>{if(leaveItem){try{leaveItem();}catch(e){}}});
+  let arm=null;
+  $('#mreset').onclick=()=>{
+    const b=$('#mreset');
+    if(!arm){b.textContent='Klicka igen – historiken raderas';arm=setTimeout(()=>{arm=null;b.textContent='Nollställ min träningshistorik';},3500);return;}
+    clearTimeout(arm);arm=null;state.log={};save();b.textContent='Nollställ min träningshistorik';fill();
+  };
+})();
+
+/* ===== MAIN ===== */
+function render(){
+  if(state.sec>=SECTIONS.length||state.sec<0) state.sec=0;
+  if(leaveItem){try{leaveItem();}catch(e){}leaveItem=null;}
+  renderTabs();
+  const s=SECTIONS[state.sec];
+  sortables.forEach(x=>x.destroy());sortables=[];
+  const old=$('#stage'),fresh=old.cloneNode(false);old.replaceWith(fresh);
+  ({demo:viewDemo,cards:viewCards,quiz:viewQuiz,build:viewBuild})[s.kind](fresh);
+  renderFoot();
+}
+document.addEventListener('keydown',e=>{
+  if(e.target.closest('input,textarea')||!$('#modal').hidden) return;
+  const s=SECTIONS[state.sec],i=curIdx();
+  if(e.key==='ArrowRight'&&s.items&&i<s.items.length-1) setIdx(i+1);
+  else if(e.key==='ArrowLeft'&&s.items&&i>0) setIdx(i-1);
+  else if(e.key===' '&&s.kind==='demo'&&!e.target.closest('button')){e.preventDefault();$('#go').click();}
+  else if(e.key.toLowerCase()==='f'&&!e.target.closest('button')) toggleFs();
+});
+function toggleFs(){try{if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen();}catch(e){}}
+$('#fsBtn').onclick=toggleFs;
+let armAll=null;
+$('#clearAll').onclick=()=>{
+  const b=$('#clearAll');
+  if(!armAll){b.textContent='Klicka igen för att rensa allt';b.style.borderColor='var(--verb)';b.style.color='var(--verb)';
+    armAll=setTimeout(()=>{armAll=null;b.textContent='✕ Rensa allt';b.style.borderColor='';b.style.color='';},3500);return;}
+  clearTimeout(armAll);armAll=null;b.textContent='✕ Rensa allt';b.style.borderColor='';b.style.color='';
+  state.build={};state.demo={};state.quiz={};state.done={};state.idx={};save();render();
+};
+$('#themeBtn').onclick=()=>{
+  const root=document.documentElement,cur=root.getAttribute('data-theme');
+  const dark=cur?cur==='dark':matchMedia('(prefers-color-scheme: dark)').matches;
+  root.setAttribute('data-theme',dark?'light':'dark');
+  try{localStorage.setItem('relativa-theme',dark?'light':'dark');}catch(e){}
+};
+try{const th=localStorage.getItem('relativa-theme');if(th)document.documentElement.setAttribute('data-theme',th);}catch(e){}
+render();
+</script>
+</body>
+</html>
