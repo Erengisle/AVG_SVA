@@ -36,10 +36,10 @@ Mapp: `/relativa-bisatser/`
 
 | Flik | Innehåll |
 | --- | --- |
-| Inledare | Områdets inledning: vad en relativ bisats är och varför den behövs, plus kort för som, vilken/vilket/vilka, vilket, vars, där, då och varav. |
+| Inledning | Startsidan: en guide över sidans fyra delar, vad en relativ bisats är och varför den behövs, plus kort för som, vilken/vilket/vilka, vilket, vars, där, då och varav. |
 | Genomgång | Sju exempel där två meningar animeras ihop till en. Det ord som ersätts stryks, inledaren glider in först och orden flyttar sig till bisatsordföljd. |
 | Vad kan du redan? | Tio meningar där eleven väljer inledare och får förklaringen direkt. |
-| Övningen (16) | Bokens uppgifter i tre steg: välj inledare, bygg bisatsen, lägg ordet som ersätts åt sidan. |
+| Övningen (16) | Uppgifterna i tre steg: välj inledare, bygg bisatsen, lägg ordet som ersätts åt sidan. |
 
 Källa anges inte någonstans – varken på elevsidan eller här – för att uppgifterna inte ska gå att söka upp.
 
