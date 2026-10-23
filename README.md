@@ -27,8 +27,8 @@ Mapp: `/` (repots rot)
 | Trälarna | Samma sak, men meningarna bildar tillsammans en sammanhängande text som går att läsa i sin helhet. |
 | Muntlig övning | Eleven säger meningen högt, sedan animeras ordföljdsbytet. |
 | Att-bisatser | Bygg om huvudsatser till att-bisatser och placera dem i rätt mening. |
-| Börja med att-bisatsen | Animerad flytt av bisatsen till fundamentet. |
-| Frågebisatser | Frågor görs om till frågebisatser, med färgmarkerade led. |
+| Börja med att-bisatsen | Eleven flyttar orden så att meningen börjar med att-bisatsen, med verbet direkt efter. |
+| Frågebisatser | Eleven bygger frågebisatsen av ordbrickor efter en given huvudsats och avgör om *som* behövs. 12 uppgifter. |
 | Tidsbisatser | Två satser blir en med tidsbisats (när, innan, medan, inte förrän, tills, sedan, så snart, så länge). Eleven väljer inledare, bygger bisatsen och lägger överflödiga bindeord åt sidan. 20 uppgifter. |
 | Orsaksbisatser | Samma upplägg med eftersom och därför att, med regeln att därför att inte kan stå först i meningen. 10 uppgifter. |
 
